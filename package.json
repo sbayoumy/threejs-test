@@ -2,7 +2,7 @@
   "repository": "#",
   "license": "UNLICENSED",
   "scripts": {
-    "start": "node ./bundler/webpack.dev.js",
+    "start": "npm run dev",
     "build": "webpack --config ./bundler/webpack.prod.js",
     "dev": "webpack serve --config ./bundler/webpack.dev.js"
   },
