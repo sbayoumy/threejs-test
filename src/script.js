@@ -1,7 +1,6 @@
 import './style.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { ARButton } from 'three/examples/jsm/webxr/ARButton.js'
 import * as dat from 'dat.gui'
 
 // Debug
@@ -14,13 +13,19 @@ const canvas = document.querySelector('canvas.webgl')
 const scene = new THREE.Scene()
 
 // Objects
-const geometry = new THREE.CylinderGeometry( 0, 0.05, 0.2, 32 ).rotateX( Math.PI / 2 );
+const geometry = new THREE.TorusGeometry( .7, .2, 16, 100 );
 
 // Materials
+
 const material = new THREE.MeshBasicMaterial()
-material.color = new THREE.Color(0xff0000)
+material.color = new THREE.Color(0xffff00)
+
+// Mesh
+const sphere = new THREE.Mesh(geometry,material)
+scene.add(sphere)
 
 // Lights
+
 const pointLight = new THREE.PointLight(0xffffff, 0.1)
 pointLight.position.x = 2
 pointLight.position.y = 3
@@ -72,33 +77,20 @@ const renderer = new THREE.WebGLRenderer({
 })
 renderer.setSize(sizes.width, sizes.height)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-renderer.xr.enabled = true
-
-// Controller
-const controller = renderer.xr.getController(0)
-controller.addEventListener('select', () =>
-{
-    const material = new THREE.MeshPhongMaterial( { color: 0xffffff * Math.random() } )
-    const mesh = new THREE.Mesh( geometry, material )
-    mesh.position.set( 0, 0, - 0.3 ).applyMatrix4( controller.matrixWorld )
-    mesh.quaternion.setFromRotationMatrix( controller.matrixWorld )
-    scene.add( mesh )
-})
-scene.add(controller)
-
-// AR Button
-document.body.appendChild(ARButton.createButton(renderer));
-
 
 /**
  * Animate
  */
+
 const clock = new THREE.Clock()
 
 const tick = () =>
 {
 
     const elapsedTime = clock.getElapsedTime()
+
+    // Update objects
+    sphere.rotation.y = .5 * elapsedTime
 
     // Update Orbital Controls
     // controls.update()
