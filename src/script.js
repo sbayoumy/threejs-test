@@ -1,8 +1,11 @@
 import './style.css'
 import * as THREE from 'three'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { TubePainter } from 'three/examples/jsm/misc/TubePainter.js'
 import { ARButton } from 'three/examples/jsm/webxr/ARButton.js'
+import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+
 import * as dat from 'dat.gui'
 
 // Debug
@@ -15,19 +18,19 @@ let canvas = document.querySelector('canvas.webgl')
 let scene = new THREE.Scene()
 
 // Objects
-const geometry = new THREE.TorusGeometry( .7, .2, 16, 100 )
+const geometry = new THREE.TorusGeometry( .03, .01, 16, 100 )
 
 // Materials
 const material = new THREE.MeshBasicMaterial()
-material.color = new THREE.Color(0x00ff00)
+material.color = new THREE.Color(0xffff00)
 
 // Mesh
 const torus = new THREE.Mesh(geometry,material)
-torus.position.z = -2
+torus.position.z = -0.25;
 scene.add(torus)
 
 // Lights
-const pointLight = new THREE.PointLight(0xffffff, 0.1)
+const pointLight = new THREE.PointLight(0xffffff, 1.5)
 pointLight.position.x = 2
 pointLight.position.y = 3
 pointLight.position.z = 4
@@ -70,7 +73,7 @@ window.addEventListener('resize', () =>
  * Camera
  */
 // Base camera
-const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 20)
+const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 200)
 scene.add(camera)
 
 /**
@@ -82,7 +85,29 @@ const renderer = new THREE.WebGLRenderer({
 })
 renderer.setSize(sizes.width, sizes.height)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+renderer.toneMapping = THREE.ACESFilmicToneMapping
+renderer.toneMappingExposure = 1
+renderer.outputEncoding = THREE.sRGBEncoding
 renderer.xr.enabled = true
+
+// Loader
+const ktx2Loader = new KTX2Loader()
+    .setTranscoderPath('basis/')
+    .detectSupport(renderer)
+
+const loader = new GLTFLoader().setPath('models/gltf/')
+loader.setKTX2Loader(ktx2Loader)
+loader.setMeshoptDecoder(MeshoptDecoder)
+loader.load('coffeemat.glb', (gltf) => {
+    // coffeemat.glb was produced from the source scene using gltfpack:
+    // gltfpack -i coffeemat/scene.gltf -o coffeemat.glb -cc -tc
+    // The resulting model uses EXT_meshopt_compression (for geometry) and KHR_texture_basisu (for texture compression using ETC1S/BasisLZ)
+
+    gltf.scene.scale.multiplyScalar(1 / 1200)
+    gltf.scene.position.z = -0.25;
+    gltf.scene.position.y = -0.225;
+    scene.add(gltf.scene)
+})
 
 // AR Button
 document.body.appendChild(ARButton.createButton(renderer));
@@ -134,6 +159,7 @@ const handleController = (controller) =>{
     }
 }
 
+// Update
 const tick = () =>
 {
     const elapsedTime = clock.getElapsedTime()
@@ -141,27 +167,19 @@ const tick = () =>
     // Update objects
     torus.rotation.y = .5 * elapsedTime
 
-    // Update Orbital Controls
+    // Update Controls
     // controls.update()
-
-    // Render
-    renderer.render(scene, camera)
-    
-    // Call tick again on the next frame
-    // WebXR can only update frames within setAnimationLoop
-    if(renderer.xr.isPresenting)
-    {   
-        // Update controller handling
-        handleController(controller)
-
-        renderer.setAnimationLoop(tick)
-        console.log("xr")
-    }
-    else
-    {
-        window.requestAnimationFrame(tick)
-        console.log("normal")
-    }
+    handleController(controller)
 }
 
-tick()
+// Render loop
+const loop = () =>
+{
+    renderer.setAnimationLoop(() => {
+        tick()
+
+        renderer.render(scene , camera)
+    })
+}
+
+loop()
