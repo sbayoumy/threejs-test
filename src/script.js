@@ -161,7 +161,7 @@ renderer.xr.addEventListener('sessionend', () => {
 
 // Painter
 painter = new TubePainter()
-painter.setSize(0.4)
+painter.setSize(0.74)
 painter.mesh.material.side = THREE.DoubleSide
 scene.add(painter.mesh)
 
