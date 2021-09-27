@@ -7,7 +7,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import * as Stats from 'stats.js'
 import * as dat from 'dat.gui'
-import { Color, Matrix4 } from 'three'
+import { Color } from 'three'
 
 // Canvas
 let canvas = document.querySelector('canvas.webgl')
@@ -22,26 +22,16 @@ document.body.appendChild(stats.dom)
 let scene = new THREE.Scene()
 
 // Objects
-const torusGeometry = new THREE.TorusGeometry( .03, .01, 16, 100 )
-const reticleGeometry = new THREE.RingGeometry( 0.01, 0.015, 32).rotateX(-Math.PI/2)
+const geometry = new THREE.TorusGeometry( .03, .01, 16, 100 )
 
 // Materials
-const torusMaterial = new THREE.MeshBasicMaterial()
-torusMaterial.color = new THREE.Color(0xffff00)
-const reticleMaterial = new THREE.MeshBasicMaterial()
+const material = new THREE.MeshBasicMaterial()
+material.color = new THREE.Color(0xffff00)
 
 // Mesh
-const torus = new THREE.Mesh(torusGeometry,torusMaterial)
-torus.position.z = -0.25
-
-const reticle = new THREE.Mesh(reticleGeometry,reticleMaterial)
-// reticle.position.z = -0.5
-// reticle.position.y = -0.2
-reticle.matrixAutoUpdate = false
-reticle.visible = false
-
+const torus = new THREE.Mesh(geometry,material)
+torus.position.z = -0.25;
 scene.add(torus)
-scene.add(reticle)
 
 // Lights
 const directionalLight = new THREE.DirectionalLight(0xffffff, 2)
@@ -54,17 +44,12 @@ scene.add(directionalLight)
 // Cursor
 const cursor = new THREE.Vector3()
 
-// XR
+// XR Controller
 let controller
-let referenceSpace
-let session
 
 // Painter
 let painter
 
-// Hit test source
-let hitTestSource
-let hitTestSourceRequested = false
 
 /**
  * Sizes
@@ -136,27 +121,11 @@ document.body.appendChild(ARButton.createButton(renderer, {
 }));
 renderer.xr.addEventListener('sessionstart', () => {
     renderer.setClearAlpha(0)
-    session = renderer.xr.getSession()
-    referenceSpace = renderer.xr.getReferenceSpace()
-
-    if (hitTestSourceRequested === false){
-        session.requestReferenceSpace('viewer').then((referenceSpace) =>{
-            session.requestHitTestSource( {space: referenceSpace}).then((source) =>{
-                hitTestSource = source
-            })
-        })
-
-        hitTestSourceRequested = true
-        console.log("Hit test source requested")
-    }
-
-    console.log("sessionstart")
+    console.log("start")
 })
 renderer.xr.addEventListener('sessionend', () => {
-    hitTestSourceRequested = false
-    hitTestSource = null
     renderer.setClearAlpha(1)
-    console.log("sessionend")
+    console.log("end")
 })
 
 // Painter
@@ -191,7 +160,7 @@ const clock = new THREE.Clock()
 const handleController = (controller) =>{
     const userData = controller.userData
 
-    // cursor.set(0, 0, -0.2).applyMatrix4(controller.matrixWorld)
+    cursor.set(0, 0, -0.2).applyMatrix4(controller.matrixWorld)
 
     if(userData.isSelecting === true){
         if(userData.skipFrames >= 0){
@@ -225,25 +194,8 @@ const tick = () =>
 // Render loop
 const loop = () =>
 {
-    renderer.setAnimationLoop((number, xrFrame) => {
+    renderer.setAnimationLoop(() => {
         tick()
-        if(xrFrame){
-            if(hitTestSource){
-                const hitTestResults = xrFrame.getHitTestResults(hitTestSource)
-                if(hitTestResults.length){
-                    const hit = hitTestResults[0]
-                    
-                    reticle.visible = true
-                    reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix)
-                    const m4 = new Matrix4()
-                    m4.fromArray(hit.getPose(referenceSpace).transform.matrix)
-                    cursor.set(0, 0, 0).applyMatrix4(m4)
-                }
-                else{
-                    reticle.visible = false
-                }
-            }
-        }
 
         renderer.render(scene , camera)
     })
