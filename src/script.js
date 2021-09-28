@@ -1,13 +1,8 @@
 import './style.css'
 import * as THREE from 'three'
-import { TubePainter } from 'three/examples/jsm/misc/TubePainter.js'
 import { ARButton } from 'three/examples/jsm/webxr/ARButton.js'
-import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import * as Stats from 'stats.js'
 import * as dat from 'dat.gui'
-import { Color, Matrix4 } from 'three'
 
 // Canvas
 let canvas = document.querySelector('canvas.webgl')
@@ -18,53 +13,270 @@ let stats = new Stats()
 stats.showPanel(0)
 document.body.appendChild(stats.dom)
 
+// Loaders
+const textureLoader = new THREE.TextureLoader()
+
+// Textures
+const lavaTexture = textureLoader.load("lava.png")
+
 // Scene
 let scene = new THREE.Scene()
 
-// Objects
-const torusGeometry = new THREE.TorusGeometry( .03, .01, 16, 100 )
-const reticleGeometry = new THREE.RingGeometry( 0.01, 0.015, 32).rotateX(-Math.PI/2)
+// Geometries
+// const torusGeometry = new THREE.TorusGeometry( .03, .01, 16, 100 )
+const icosahedronGeometry = new THREE.IcosahedronGeometry(25, 200)
 
 // Materials
-const torusMaterial = new THREE.MeshBasicMaterial()
-torusMaterial.color = new THREE.Color(0xffff00)
-const reticleMaterial = new THREE.MeshBasicMaterial()
+const icosahedronMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+        tLava: {
+            type: "t",
+            value: lavaTexture
+        },
+        time: {
+            type: "f",
+            value: 0.0
+        }
+    },
+    vertexShader:
+        `
+        //
+        // GLSL textureless classic 3D noise "cnoise",
+        // with an RSL-style periodic variant "pnoise".
+        // Author:  Stefan Gustavson (stefan.gustavson@liu.se)
+        // Version: 2011-10-11
+        //
+        // Many thanks to Ian McEwan of Ashima Arts for the
+        // ideas for permutation and gradient selection.
+        //
+        // Copyright (c) 2011 Stefan Gustavson. All rights reserved.
+        // Distributed under the MIT license. See LICENSE file.
+        // https://github.com/stegu/webgl-noise
+        //
+        vec3 mod289(vec3 x)
+        {
+        return x - floor(x * (1.0 / 289.0)) * 289.0;
+        }
 
-// Mesh
-const torus = new THREE.Mesh(torusGeometry,torusMaterial)
-torus.position.z = -0.25
+        vec4 mod289(vec4 x)
+        {
+        return x - floor(x * (1.0 / 289.0)) * 289.0;
+        }
 
-const reticle = new THREE.Mesh(reticleGeometry,reticleMaterial)
-// reticle.position.z = -0.5
-// reticle.position.y = -0.2
-reticle.matrixAutoUpdate = false
-reticle.visible = false
+        vec4 permute(vec4 x)
+        {
+        return mod289(((x*34.0)+10.0)*x);
+        }
 
-scene.add(torus)
-scene.add(reticle)
+        vec4 taylorInvSqrt(vec4 r)
+        {
+        return 1.79284291400159 - 0.85373472095314 * r;
+        }
+
+        vec3 fade(vec3 t) {
+        return t*t*t*(t*(t*6.0-15.0)+10.0);
+        }
+
+        // Classic Perlin noise
+        float cnoise(vec3 P)
+        {
+        vec3 Pi0 = floor(P); // Integer part for indexing
+        vec3 Pi1 = Pi0 + vec3(1.0); // Integer part + 1
+        Pi0 = mod289(Pi0);
+        Pi1 = mod289(Pi1);
+        vec3 Pf0 = fract(P); // Fractional part for interpolation
+        vec3 Pf1 = Pf0 - vec3(1.0); // Fractional part - 1.0
+        vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
+        vec4 iy = vec4(Pi0.yy, Pi1.yy);
+        vec4 iz0 = Pi0.zzzz;
+        vec4 iz1 = Pi1.zzzz;
+
+        vec4 ixy = permute(permute(ix) + iy);
+        vec4 ixy0 = permute(ixy + iz0);
+        vec4 ixy1 = permute(ixy + iz1);
+
+        vec4 gx0 = ixy0 * (1.0 / 7.0);
+        vec4 gy0 = fract(floor(gx0) * (1.0 / 7.0)) - 0.5;
+        gx0 = fract(gx0);
+        vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
+        vec4 sz0 = step(gz0, vec4(0.0));
+        gx0 -= sz0 * (step(0.0, gx0) - 0.5);
+        gy0 -= sz0 * (step(0.0, gy0) - 0.5);
+
+        vec4 gx1 = ixy1 * (1.0 / 7.0);
+        vec4 gy1 = fract(floor(gx1) * (1.0 / 7.0)) - 0.5;
+        gx1 = fract(gx1);
+        vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
+        vec4 sz1 = step(gz1, vec4(0.0));
+        gx1 -= sz1 * (step(0.0, gx1) - 0.5);
+        gy1 -= sz1 * (step(0.0, gy1) - 0.5);
+
+        vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
+        vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
+        vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
+        vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
+        vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
+        vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
+        vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
+        vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
+
+        vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
+        g000 *= norm0.x;
+        g010 *= norm0.y;
+        g100 *= norm0.z;
+        g110 *= norm0.w;
+        vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
+        g001 *= norm1.x;
+        g011 *= norm1.y;
+        g101 *= norm1.z;
+        g111 *= norm1.w;
+
+        float n000 = dot(g000, Pf0);
+        float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
+        float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
+        float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
+        float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
+        float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
+        float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
+        float n111 = dot(g111, Pf1);
+
+        vec3 fade_xyz = fade(Pf0);
+        vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
+        vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
+        float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x); 
+        return 2.2 * n_xyz;
+        }
+
+        // Classic Perlin noise, periodic variant
+        float pnoise(vec3 P, vec3 rep)
+        {
+        vec3 Pi0 = mod(floor(P), rep); // Integer part, modulo period
+        vec3 Pi1 = mod(Pi0 + vec3(1.0), rep); // Integer part + 1, mod period
+        Pi0 = mod289(Pi0);
+        Pi1 = mod289(Pi1);
+        vec3 Pf0 = fract(P); // Fractional part for interpolation
+        vec3 Pf1 = Pf0 - vec3(1.0); // Fractional part - 1.0
+        vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
+        vec4 iy = vec4(Pi0.yy, Pi1.yy);
+        vec4 iz0 = Pi0.zzzz;
+        vec4 iz1 = Pi1.zzzz;
+
+        vec4 ixy = permute(permute(ix) + iy);
+        vec4 ixy0 = permute(ixy + iz0);
+        vec4 ixy1 = permute(ixy + iz1);
+
+        vec4 gx0 = ixy0 * (1.0 / 7.0);
+        vec4 gy0 = fract(floor(gx0) * (1.0 / 7.0)) - 0.5;
+        gx0 = fract(gx0);
+        vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
+        vec4 sz0 = step(gz0, vec4(0.0));
+        gx0 -= sz0 * (step(0.0, gx0) - 0.5);
+        gy0 -= sz0 * (step(0.0, gy0) - 0.5);
+
+        vec4 gx1 = ixy1 * (1.0 / 7.0);
+        vec4 gy1 = fract(floor(gx1) * (1.0 / 7.0)) - 0.5;
+        gx1 = fract(gx1);
+        vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
+        vec4 sz1 = step(gz1, vec4(0.0));
+        gx1 -= sz1 * (step(0.0, gx1) - 0.5);
+        gy1 -= sz1 * (step(0.0, gy1) - 0.5);
+
+        vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
+        vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
+        vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
+        vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
+        vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
+        vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
+        vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
+        vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
+
+        vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
+        g000 *= norm0.x;
+        g010 *= norm0.y;
+        g100 *= norm0.z;
+        g110 *= norm0.w;
+        vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
+        g001 *= norm1.x;
+        g011 *= norm1.y;
+        g101 *= norm1.z;
+        g111 *= norm1.w;
+
+        float n000 = dot(g000, Pf0);
+        float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
+        float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
+        float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
+        float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
+        float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
+        float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
+        float n111 = dot(g111, Pf1);
+
+        vec3 fade_xyz = fade(Pf0);
+        vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
+        vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
+        float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x); 
+        return 2.2 * n_xyz;
+        }
+
+        // Start vertex shader
+
+        varying vec2 vUv;
+        varying float high_noise;
+        uniform float time;
+
+        float turbulence(vec3 p){
+            float w = 10.0;
+            float t = -0.1;
+
+            for(float f = 1.0; f <= 10.0; f++){
+                float power = pow(2.0, f);
+                t += abs(pnoise(vec3(power * p), vec3(10.0, 10.0, 10.0)) / power);
+            }
+            return t;
+        }
+
+        void main() {
+            vUv = uv;
+
+            // Get turbulent noise using normal (high frequency)
+            high_noise = 12.0 * -0.07 * turbulence(1.2 * normal + time);
+            // Get noise using vertex position (low frequency)
+            float low_noise = 1.5 * pnoise(0.19 * position, vec3(100.0));
+            // Combine noises
+            float displacement = -12.0 * high_noise + low_noise;
+
+            // Transform vertex position along the normal
+            vec3 newPosition = position + normal * displacement;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+        }
+        `, 
+    fragmentShader:
+        `
+        varying vec2 vUv;
+        varying float high_noise;
+        uniform sampler2D tLava;
+
+        void main() {
+            
+            // Apply color in the texture using noise
+            vec2 tPos = vec2(0.0, -1.5 * high_noise + 0.43);
+            vec4 color = texture2D(tLava, tPos);
+            gl_FragColor = vec4( color.rgb, 1.0);
+        }
+        `
+})
+
+// Meshes
+const icosahedron = new THREE.Mesh(icosahedronGeometry, icosahedronMaterial)
+icosahedron.position.z = -50
+
+scene.add(icosahedron)
 
 // Lights
 const directionalLight = new THREE.DirectionalLight(0xffffff, 2)
 directionalLight.position.x = 4
 directionalLight.position.z = 2
-directionalLight.lookAt(torus)
+directionalLight.lookAt(icosahedron)
 scene.add(directionalLight)
-
-
-// Cursor
-const cursor = new THREE.Vector3()
-
-// XR
-let controller
-let referenceSpace
-let session
-
-// Painter
-let painter
-
-// Hit test source
-let hitTestSource
-let hitTestSourceRequested = false
 
 /**
  * Sizes
@@ -105,106 +317,30 @@ const renderer = new THREE.WebGLRenderer({
 })
 renderer.setSize(sizes.width, sizes.height)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-renderer.setClearColor(new THREE.Color(0x0f5f0f))
+renderer.setClearColor(new THREE.Color(0x2f2f2f))
 renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 1
 renderer.outputEncoding = THREE.sRGBEncoding
 renderer.xr.enabled = true
 
-// Loader
-const ktx2Loader = new KTX2Loader()
-    .setTranscoderPath('basis/')
-    .detectSupport(renderer)
-
-const loader = new GLTFLoader().setPath('models/gltf/')
-loader.setKTX2Loader(ktx2Loader)
-loader.setMeshoptDecoder(MeshoptDecoder)
-loader.load('coffeemat.glb', (gltf) => {
-    // coffeemat.glb was produced from the source scene using gltfpack:
-    // gltfpack -i coffeemat/scene.gltf -o coffeemat.glb -cc -tc
-    // The resulting model uses EXT_meshopt_compression (for geometry) and KHR_texture_basisu (for texture compression using ETC1S/BasisLZ)
-
-    gltf.scene.scale.multiplyScalar(1 / 1200)
-    gltf.scene.position.z = -0.25;
-    gltf.scene.position.y = -0.225;
-    // scene.add(gltf.scene)
-})
-
 // AR Session
-document.body.appendChild(ARButton.createButton(renderer, {
-    requiredFeatures: ["hit-test"]
-}));
+// document.body.appendChild(ARButton.createButton(renderer));
 renderer.xr.addEventListener('sessionstart', () => {
     renderer.setClearAlpha(0)
     session = renderer.xr.getSession()
-    referenceSpace = renderer.xr.getReferenceSpace()
-
-    if (hitTestSourceRequested === false){
-        session.requestReferenceSpace('viewer').then((referenceSpace) =>{
-            session.requestHitTestSource( {space: referenceSpace}).then((source) =>{
-                hitTestSource = source
-            })
-        })
-
-        hitTestSourceRequested = true
-        console.log("Hit test source requested")
-    }
 
     console.log("sessionstart")
 })
 renderer.xr.addEventListener('sessionend', () => {
-    hitTestSourceRequested = false
-    hitTestSource = null
     renderer.setClearAlpha(1)
+
     console.log("sessionend")
 })
-
-// Painter
-painter = new TubePainter()
-painter.setSize(0.74)
-painter.mesh.material.side = THREE.DoubleSide
-scene.add(painter.mesh)
-
-// Controls
-// const controls = new OrbitControls(camera, canvas)
-// controls.enableDamping = true
-function onSelectStart(){
-    this.userData.isSelecting = true
-    this.userData.skipFrames = 2
-}
-function onSelectEnd(){
-    this.userData.isSelecting = false
-}
-
-controller = renderer.xr.getController(0)
-controller.addEventListener('selectstart', onSelectStart)
-controller.addEventListener('selectend', onSelectEnd)
-controller.userData.skipFrames = 0
-scene.add(controller)
 
 /**
  * Animate
  */
 const clock = new THREE.Clock()
-
-// Handle controller
-const handleController = (controller) =>{
-    const userData = controller.userData
-
-    // cursor.set(0, 0, -0.2).applyMatrix4(controller.matrixWorld)
-
-    if(userData.isSelecting === true){
-        if(userData.skipFrames >= 0){
-            userData.skipFrames --
-
-            painter.moveTo(cursor)
-        }
-        else{
-            painter.lineTo(cursor)
-            painter.update()
-        }
-    }
-}
 
 // Update
 const tick = () =>
@@ -213,11 +349,8 @@ const tick = () =>
     const elapsedTime = clock.getElapsedTime()
 
     // Update objects
-    torus.rotation.y = .5 * elapsedTime
-
-    // Update Controls
-    // controls.update()
-    handleController(controller)
+    icosahedron.rotation.y = .5 * elapsedTime
+    icosahedronMaterial.uniforms['time'].value = 0.124 * elapsedTime
 
     stats.end()
 }
@@ -225,28 +358,10 @@ const tick = () =>
 // Render loop
 const loop = () =>
 {
-    renderer.setAnimationLoop((number, xrFrame) => {
-        tick()
-        if(xrFrame){
-            if(hitTestSource){
-                const hitTestResults = xrFrame.getHitTestResults(hitTestSource)
-                if(hitTestResults.length){
-                    const hit = hitTestResults[0]
-                    
-                    reticle.visible = true
-                    reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix)
-                    const m4 = new Matrix4()
-                    m4.fromArray(hit.getPose(referenceSpace).transform.matrix)
-                    cursor.set(0, 0, 0).applyMatrix4(m4)
-                }
-                else{
-                    reticle.visible = false
-                }
-            }
-        }
-
-        renderer.render(scene , camera)
-    })
+    requestAnimationFrame(loop)
+    tick()
+    
+    renderer.render(scene , camera)
 }
 
 loop()
