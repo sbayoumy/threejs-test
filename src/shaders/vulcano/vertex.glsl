@@ -42,10 +42,10 @@ void main()
     vec4 modelPosition = modelMatrix * vec4(position, 1.0);
 
     vec2 coord = uv;
-    vec2 offset = vec2(1.0, 0.65);
+    vec2 offset = vec2(0.5, 0.5);
     float vulcanoBase = clamp(draw_circle(coord - offset, 0.4, 3.5), 0.0, 1.0);
     float vulcanoCrater = clamp(draw_circle(coord - offset, 0.15, 3.4), 0.0, 1.0);
-    float vulcanoFinal = vulcanoBase - vulcanoCrater * 0.8;
+    float vulcanoFinal = vulcanoCrater - vulcanoBase;
     float elevationZ = getElevation(modelPosition.xy, 2.0) * 0.3;
 
     // Get turbulent noise using normal (high frequency)
@@ -58,8 +58,8 @@ void main()
     // Transform vertex position along the normal
     vec3 newPosition = normal * displacement;
 
-    modelPosition.z = vulcanoFinal;
-    modelPosition.z *= elevationZ + 0.8;
+    modelPosition.y *= vulcanoBase;
+    // modelPosition.y *= elevationZ + 0.8;
     
     vec4 viewPosition = viewMatrix * modelPosition;
     vec4 projectionPosition = projectionMatrix * viewPosition;

@@ -1,5 +1,6 @@
 import './style.css'
 import * as THREE from 'three'
+import { TubePainter } from 'three/examples/jsm/misc/TubePainter.js'
 import { ARButton } from 'three/examples/jsm/webxr/ARButton.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { VertexNormalsHelper } from 'three/examples/jsm/helpers/VertexNormalsHelper'
@@ -27,19 +28,37 @@ const lavaTexture = textureLoader.load("lava.png")
 // Scene
 let scene = new THREE.Scene()
 
+// Cursor
+const cursor = new THREE.Vector3()
+
+// XR
+let controller
+let viewerReferenceSpace
+let session
+
+// Hit test source
+let hitTestSource
+let hitTestSourceRequested = false
+
+// Painter
+let painter = new TubePainter()
+painter.setSize(0.74)
+painter.mesh.material.side = THREE.DoubleSide
+scene.add(painter.mesh)
+
 // Shape
 const shape = new THREE.Shape()
 // Complex
-shape.lineTo(0, 0.8)
-shape.lineTo(0.2, 1)
-shape.lineTo(0.6, 1.2)
-shape.lineTo(0.9, 1.0)
-shape.lineTo(1.2, 1.0)
-shape.lineTo(1.5, 0.8)
-shape.lineTo(1.8, 0.4)
-shape.lineTo(1.8, 0)
-shape.lineTo(1.2, -0.5)
-shape.lineTo(0.2, -0.5)
+// shape.lineTo(0, 0.8)
+// shape.lineTo(0.2, 1)
+// shape.lineTo(0.6, 1.2)
+// shape.lineTo(0.9, 1.0)
+// shape.lineTo(1.2, 1.0)
+// shape.lineTo(1.5, 0.8)
+// shape.lineTo(1.8, 0.4)
+// shape.lineTo(1.8, 0)
+// shape.lineTo(1.2, -0.5)
+// shape.lineTo(0.2, -0.5)
 // Simple
 // shape.lineTo(0, 0)
 // shape.lineTo(0, 1)
@@ -56,11 +75,8 @@ const extrudeSettings = {
 // Geometries
 // const torusGeometry = new THREE.TorusGeometry( .03, .01, 16, 100 )
 const icosahedronGeometry = new THREE.IcosahedronGeometry(20, 20)
-const contourGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings)
-var pointsAndUvs = generatePointsAndUvOnGeo(contourGeometry, 400)// <-- 0 Is points && 1 is UVs
-var pointsArray = pointsAndUvs[0]
+const reticleGeometry = new THREE.RingGeometry( 0.01, 0.015, 32).rotateX(-Math.PI/2)
 
-const vulcanoGeometry = new THREE.BufferGeometry().setFromPoints(pointsArray)
 
 // Materials
 const icosahedronMaterial = new THREE.ShaderMaterial({
@@ -300,68 +316,33 @@ const icosahedronMaterial = new THREE.ShaderMaterial({
         }
         `
 })
+const reticleMaterial = new THREE.MeshBasicMaterial()
 const contourMaterial = new THREE.MeshBasicMaterial({color: 0xffffff, wireframe: true})
-const pointsMaterial = new THREE.PointsMaterial({color: "yellow", size: 0.03})
+const pointsMaterial = new THREE.PointsMaterial({color: "yellow", size: 0.02})
 const vulcanoMaterial = new THREE.ShaderMaterial({
+    side: THREE.DoubleSide,
     vertexShader: vulcanoVertexShader,
-    fragmentShader: vulcanoFragmentShader
+    fragmentShader: vulcanoFragmentShader,
+    uniforms: {
+      tLava: {
+          type: "t",
+          value: lavaTexture
+      },
+      uTime: {
+          type: "f",
+          value: 0.0
+      }
+  },
 })
 
 // Meshes
 const icosahedron = new THREE.Mesh(icosahedronGeometry, icosahedronMaterial)
 icosahedron.position.z = -50
 // scene.add(icosahedron)
-const contour = new THREE.Mesh(contourGeometry, contourMaterial)
-scene.add(contour)
-
-// Points
-const points = new THREE.Points(vulcanoGeometry, pointsMaterial)
-// contour.add(points)
-
-// Vulcano
-
-var indexDelaunay = Delaunator.from(
-    pointsArray.map(v => {
-        return [v.y, v.x]
-    })
-)
-// UVs
-var uvs = new Float32Array(pointsArray.length * 3 * 2)
-// var uvs = new Float32Array(pointsAndUvs[0])
-var pointsIndex = [] // Delaunay index => Three.js index
-
-for (let i = 0; i < indexDelaunay.triangles.length; i++){
-    pointsIndex.push(indexDelaunay.triangles[i])
-}
-vulcanoGeometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
-vulcanoGeometry.uvsNeedUpdate = true
-vulcanoGeometry.setIndex(pointsIndex) // Add Three.js index to existing geometry
-
-vulcanoGeometry.computeBoundingBox()
-var bboxSize = new THREE.Vector3()
-vulcanoGeometry.boundingBox.getSize(bboxSize)
-var uvMapSize = Math.max(bboxSize.x, bboxSize.y, bboxSize.z);
-let boxGeometry = new THREE.BoxBufferGeometry(uvMapSize, uvMapSize, uvMapSize);
-let material = new THREE.MeshBasicMaterial({
-    color: 0x10f0f0,
-    transparent: true,
-    opacity: 0.5
-  });
-let cube = new THREE.Mesh(boxGeometry, material);
-// scene.add(cube);
-
-applyBoxUV(vulcanoGeometry, new THREE.Matrix4().invert(cube.matrix), uvMapSize)
-vulcanoGeometry.attributes.uv.needsUpdate = true
-
-vulcanoGeometry.computeVertexNormals()
-var vulcanoMesh = new THREE.Mesh(
-    vulcanoGeometry, // Re-use existing geometry
-    vulcanoMaterial
-)
-scene.add(vulcanoMesh)
-
-const helper = new VertexNormalsHelper(vulcanoMesh)
-// scene.add(helper)
+const reticle = new THREE.Mesh(reticleGeometry,reticleMaterial)
+reticle.matrixAutoUpdate = false
+reticle.visible = false
+scene.add(reticle)
 
 /**
  * Sizes
@@ -391,11 +372,10 @@ window.addEventListener('resize', () =>
  */
 // Base camera
 const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.025, 200)
-camera.translateZ(3)
 scene.add(camera)
 
 // Controls
-const controls = new OrbitControls(camera, canvas);
+// const controls = new OrbitControls(camera, canvas);
 
 /**
  * Renderer
@@ -413,18 +393,69 @@ renderer.outputEncoding = THREE.sRGBEncoding
 renderer.xr.enabled = true
 
 // AR Session
-// document.body.appendChild(ARButton.createButton(renderer));
+document.body.appendChild(ARButton.createButton(renderer, {
+  requiredFeatures: ["hit-test"]
+}));
 renderer.xr.addEventListener('sessionstart', () => {
-    renderer.setClearAlpha(0)
-    session = renderer.xr.getSession()
+  renderer.setClearAlpha(0)
+  session = renderer.xr.getSession()
+  viewerReferenceSpace = renderer.xr.getReferenceSpace()
 
-    console.log("sessionstart")
+  if (hitTestSourceRequested === false){
+      //TODO: Setup local reference space
+      session.requestReferenceSpace('viewer').then((referenceSpace) =>{
+          session.requestHitTestSource( {space: referenceSpace}).then((source) =>{
+              hitTestSource = source
+          })
+      })
+
+      hitTestSourceRequested = true
+      console.log("Hit test source requested")
+  }
+
+  console.log("sessionstart")
 })
 renderer.xr.addEventListener('sessionend', () => {
-    renderer.setClearAlpha(1)
-
-    console.log("sessionend")
+  hitTestSourceRequested = false
+  hitTestSource = null
+  renderer.setClearAlpha(1)
+  console.log("sessionend")
 })
+
+// Controls
+function onSelectStart(){
+  this.userData.isSelecting = true
+  this.userData.skipFrames = 2
+}
+function onSelectEnd(){
+  this.userData.isSelecting = false
+  generateVulcano()
+}
+
+controller = renderer.xr.getController(0)
+controller.addEventListener('selectstart', onSelectStart)
+controller.addEventListener('selectend', onSelectEnd)
+controller.userData.skipFrames = 0
+scene.add(controller)
+
+// Handle controller
+const handleController = (controller) =>{
+  const userData = controller.userData
+
+  if(userData.isSelecting === true){
+      if(userData.skipFrames >= 0){
+          userData.skipFrames --
+
+          painter.moveTo(cursor)
+          shape.moveTo(cursor.x, cursor.z)
+      }
+      else{
+          painter.lineTo(cursor)
+          shape.lineTo(cursor.x, cursor.z)
+          painter.update()
+      }
+  }
+}
 
 /**
  * Animate
@@ -441,19 +472,114 @@ const tick = () =>
     icosahedron.rotation.y = .5 * elapsedTime
     icosahedronMaterial.uniforms['time'].value = 0.124 * elapsedTime
 
+    // Update controls
+    handleController(controller)
+
     stats.end()
 }
 
 // Render loop
 const loop = () =>
 {
-    requestAnimationFrame(loop)
+  renderer.setAnimationLoop((number, xrFrame) => {
     tick()
-    
+    if(xrFrame){
+        if(hitTestSource){
+            const hitTestResults = xrFrame.getHitTestResults(hitTestSource)
+            // Checks if a raycast has been hit and picks the closest to the camera
+            if(hitTestResults.length){
+                const hit = hitTestResults[0]
+                
+                reticle.visible = true
+                const pose = hit.getPose(viewerReferenceSpace).transform.matrix
+                reticle.matrix.fromArray(pose)
+
+                // Create and apply transform matrix to cursor
+                const m4 = new THREE.Matrix4().fromArray(pose)
+                cursor.set(0, 0, 0).applyMatrix4(m4)
+            }
+            else{
+                reticle.visible = false
+            }
+        }
+    }
+
     renderer.render(scene , camera)
+  })
 }
 
 loop()
+
+function generateVulcano()
+{
+  const contourGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings)
+  var pointsAndUvs = generatePointsAndUvOnGeo(contourGeometry, 300)// <-- 0 Is points && 1 is UVs
+  var pointsArray = pointsAndUvs[0]
+
+  const vulcanoGeometry = new THREE.BufferGeometry().setFromPoints(pointsArray)
+
+  // Contour
+  const contour = new THREE.Mesh(contourGeometry, contourMaterial)
+  contour.rotateX(Math.PI/2)
+  contour.position.setY(cursor.y)
+  scene.add(contour)
+
+
+  // Vulcano
+  var indexDelaunay = Delaunator.from(
+    pointsArray.map(v => {
+        return [v.x, v.y]
+    })
+  )
+  // UVs
+  var uvs = new Float32Array(pointsArray.length * 3 * 2)
+  var pointsIndex = [] // Delaunay index => Three.js index
+
+  for (let i = 0; i < indexDelaunay.triangles.length; i++){
+    pointsIndex.push(indexDelaunay.triangles[i])
+  }
+  
+  vulcanoGeometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
+  vulcanoGeometry.uvsNeedUpdate = true
+  vulcanoGeometry.setIndex(pointsIndex) // Add Three.js index to existing geometry
+
+  vulcanoGeometry.computeBoundingBox()
+  var bboxSize = new THREE.Vector3()
+  vulcanoGeometry.boundingBox.getSize(bboxSize)
+  var uvMapSize = Math.max(bboxSize.x, bboxSize.y, bboxSize.z);
+  let boxGeometry = new THREE.BoxBufferGeometry(uvMapSize, uvMapSize, uvMapSize);
+  let material = new THREE.MeshBasicMaterial({
+    color: 0x10f0f0,
+    transparent: true,
+    opacity: 0.5
+  });
+  let cube = new THREE.Mesh(boxGeometry, material);
+  // scene.add(cube);
+  var center = new THREE.Vector3()
+  vulcanoGeometry.boundingBox.getCenter(center)
+  vulcanoGeometry.center()
+  applyBoxUV(vulcanoGeometry, new THREE.Matrix4().invert(cube.matrix), uvMapSize)
+  vulcanoGeometry.translate(center.x, center.y, center.z)
+  vulcanoGeometry.attributes.uv.needsUpdate = true
+
+  vulcanoGeometry.computeVertexNormals()
+  vulcanoGeometry.normalizeNormals()
+  var vulcanoMesh = new THREE.Mesh(
+    vulcanoGeometry, // Re-use existing geometry
+    vulcanoMaterial
+  )
+  vulcanoMesh.rotateX(Math.PI/2)
+  vulcanoMesh.position.setY(cursor.y)
+  scene.add(vulcanoMesh)
+
+  // Points
+  const points = new THREE.Points(vulcanoGeometry, pointsMaterial)
+  // contour.add(points)
+
+  const helper = new VertexNormalsHelper(vulcanoMesh)
+  // scene.add(helper)
+  
+}
 
 function generatePointsAndUvOnGeo(geometry, count) {   
     var dummyTarget = new THREE.Vector3() // to prevent logging of warnings from ray.at() method
@@ -470,12 +596,12 @@ function generatePointsAndUvOnGeo(geometry, count) {
         let v = new THREE.Vector3(
             THREE.Math.randFloat(bbox.min.x, bbox.max.x),
             THREE.Math.randFloat(bbox.min.y, bbox.max.y),
-            THREE.Math.randFloat(0, 1)
+            THREE.Math.randFloat(bbox.min.z, bbox.max.z)
         );
         if (isInside(v)){
             points.push(v)
             counter++
-        }
+          }
     }
 
     function isInside(v){
