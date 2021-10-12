@@ -17,6 +17,8 @@ let canvas = document.querySelector('canvas.webgl')
 let gui = new dat.GUI()
 let stats = new Stats()
 stats.showPanel(0)
+gui.domElement.style.cssText = 'position:absolute;top:40px;left:80px;';
+stats.domElement.style.cssText = 'position:absolute;top:40px;';
 document.body.appendChild(stats.dom)
 
 // Loaders
@@ -59,12 +61,6 @@ const shape = new THREE.Shape()
 // shape.lineTo(1.8, 0)
 // shape.lineTo(1.2, -0.5)
 // shape.lineTo(0.2, -0.5)
-// Simple
-// shape.lineTo(0, 0)
-// shape.lineTo(0, 1)
-// shape.lineTo(1, 1)
-// shape.lineTo(1, 0)
-// shape.lineTo(0.5, -1.5)
 
 const extrudeSettings = {
 	curveSegments: 0,
@@ -72,9 +68,14 @@ const extrudeSettings = {
     bevelEnabled: false
 };
 
+// Vulcano
+const vulcanoBboxSize = new THREE.Vector3()
+let vulcanoHeight = 0.0
+
 // Geometries
 // const torusGeometry = new THREE.TorusGeometry( .03, .01, 16, 100 )
 const icosahedronGeometry = new THREE.IcosahedronGeometry(20, 20)
+const planeGeometry = new THREE.PlaneGeometry(1, 1, 100, 100)
 const reticleGeometry = new THREE.RingGeometry( 0.01, 0.015, 32).rotateX(-Math.PI/2)
 
 
@@ -320,7 +321,6 @@ const reticleMaterial = new THREE.MeshBasicMaterial()
 const contourMaterial = new THREE.MeshBasicMaterial({color: 0xffffff, wireframe: true})
 const pointsMaterial = new THREE.PointsMaterial({color: "yellow", size: 0.02})
 const vulcanoMaterial = new THREE.ShaderMaterial({
-    side: THREE.DoubleSide,
     vertexShader: vulcanoVertexShader,
     fragmentShader: vulcanoFragmentShader,
     uniforms: {
@@ -331,11 +331,29 @@ const vulcanoMaterial = new THREE.ShaderMaterial({
       uTime: {
           type: "f",
           value: 0.0
+      },
+      uVulcanoHeight: {
+        type: "f",
+        value: 0.72
+      },
+      uVulcanoCraterSize: {
+        type: "f",
+        value: 0.7
+      },
+      uVulcanoDetails: {
+        type: "f",
+        value: 2.7
       }
   },
 })
+gui.add(vulcanoMaterial.uniforms.uVulcanoHeight, 'value').min(0.1).max(1).step(0.001).name('uVulcanoHeight')
+gui.add(vulcanoMaterial.uniforms.uVulcanoDetails, 'value').min(0.0).max(5).step(0.001).name('uVulcanoDetails')
+gui.add(vulcanoMaterial.uniforms.uVulcanoCraterSize, 'value').min(0.0).max(1).step(0.001).name('uVulcanoCraterSize')
 
 // Meshes
+const plane = new THREE.Mesh(planeGeometry, vulcanoMaterial)
+plane.position.z = -1
+// scene.add(plane)
 const icosahedron = new THREE.Mesh(icosahedronGeometry, icosahedronMaterial)
 icosahedron.position.z = -50
 // scene.add(icosahedron)
@@ -394,7 +412,9 @@ renderer.xr.enabled = true
 
 // AR Session
 document.body.appendChild(ARButton.createButton(renderer, {
-  requiredFeatures: ["hit-test"]
+  requiredFeatures: ["hit-test"],
+  optionalFeatures: ['dom-overlay', 'dom-overlay-for-handheld-ar'],
+  domOverlay: { root: document.body }
 }));
 renderer.xr.addEventListener('sessionstart', () => {
   renderer.setClearAlpha(0)
@@ -513,7 +533,7 @@ loop()
 function generateVulcano()
 {
   const contourGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings)
-  var pointsAndUvs = generatePointsAndUvOnGeo(contourGeometry, 300)// <-- 0 Is points && 1 is UVs
+  var pointsAndUvs = generatePointsAndUvOnGeo(contourGeometry, 500)// <-- 0 Is points && 1 is UVs
   var pointsArray = pointsAndUvs[0]
 
   const vulcanoGeometry = new THREE.BufferGeometry().setFromPoints(pointsArray)
@@ -544,9 +564,9 @@ function generateVulcano()
   vulcanoGeometry.setIndex(pointsIndex) // Add Three.js index to existing geometry
 
   vulcanoGeometry.computeBoundingBox()
-  var bboxSize = new THREE.Vector3()
-  vulcanoGeometry.boundingBox.getSize(bboxSize)
-  var uvMapSize = Math.max(bboxSize.x, bboxSize.y, bboxSize.z);
+  vulcanoGeometry.boundingBox.getSize(vulcanoBboxSize)
+  var uvMapSize = Math.max(vulcanoBboxSize.x, vulcanoBboxSize.y, vulcanoBboxSize.z);
+  
   let boxGeometry = new THREE.BoxBufferGeometry(uvMapSize, uvMapSize, uvMapSize);
   let material = new THREE.MeshBasicMaterial({
     color: 0x10f0f0,
@@ -576,8 +596,8 @@ function generateVulcano()
   const points = new THREE.Points(vulcanoGeometry, pointsMaterial)
   // contour.add(points)
 
-  const helper = new VertexNormalsHelper(vulcanoMesh)
-  // scene.add(helper)
+  const vertexNormalsHelper = new VertexNormalsHelper(vulcanoMesh)
+  // scene.add(vertexNormalsHelper)
   
 }
 
@@ -589,14 +609,14 @@ function generatePointsAndUvOnGeo(geometry, count) {
     let bbox = geometry.boundingBox
     let points = []
     let uvs = []
-    var dir = new THREE.Vector3(1, 1, 1).normalize()
+    var dir = new THREE.Vector3(0, 0, -1).normalize()
     
     let counter = 0
     while(counter < count){
         let v = new THREE.Vector3(
             THREE.Math.randFloat(bbox.min.x, bbox.max.x),
             THREE.Math.randFloat(bbox.min.y, bbox.max.y),
-            THREE.Math.randFloat(bbox.min.z, bbox.max.z)
+            bbox.min.z
         );
         if (isInside(v)){
             points.push(v)

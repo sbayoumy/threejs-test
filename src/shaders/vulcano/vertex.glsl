@@ -10,9 +10,12 @@ varying float vVulcanoCrater;
 varying float vHighNoise;
 
 uniform float uTime;
+uniform float uVulcanoHeight;
+uniform float uVulcanoDetails;
+uniform float uVulcanoCraterSize;
 
-float draw_circle(vec2 _coord, float _radius, float _fallOff) {
-    return 1.0 - pow(length(_coord), _radius * 3.2) * _fallOff;
+float draw_circle(vec2 _uv, float _radius, float _fallOff) {
+    return (distance(_uv, vec2(0.5)) * _radius + _fallOff);
 }
 
 float getElevation(vec2 _position, float _frequency)
@@ -21,7 +24,7 @@ float getElevation(vec2 _position, float _frequency)
     for(float i = 1.0; i < _frequency; i++)
     {
         float frequency = i;
-        elevation += getPerlinNoise2d(_position * frequency * 40.0) / 6.0;
+        elevation += getPerlinNoise2d(_position * frequency * 20.0) / 85.0;
     }
     return elevation;
 }
@@ -41,25 +44,24 @@ void main()
 {
     vec4 modelPosition = modelMatrix * vec4(position, 1.0);
 
-    vec2 coord = uv;
-    vec2 offset = vec2(0.5, 0.5);
-    float vulcanoBase = clamp(draw_circle(coord - offset, 0.4, 3.5), 0.0, 1.0);
-    float vulcanoCrater = clamp(draw_circle(coord - offset, 0.15, 3.4), 0.0, 1.0);
-    float vulcanoFinal = vulcanoCrater - vulcanoBase;
-    float elevationZ = getElevation(modelPosition.xy, 2.0) * 0.3;
+    // Vulcano shape
+    float vulcanoBase = clamp(draw_circle(uv, 2.4, 0.0), 0.0, 1.0);
+    float vulcanoCrater = clamp(draw_circle(uv, 3.7, uVulcanoCraterSize), 0.0, 1.0);
+    float vulcanoFinal = mix(vulcanoBase, -vulcanoCrater, 0.5);
+    float elevationY = getElevation(modelPosition.xz, 3.0);
 
+    // Transform vertex position along the normal
+    float newPositionY = (vulcanoFinal * uVulcanoHeight) + (elevationY * uVulcanoDetails);
+    modelPosition.y -= newPositionY;
+    // modelPosition.y *= vulcanoBase;
+
+    // Lava flow?
     // Get turbulent noise using normal (high frequency)
     vHighNoise = 12.0 * -0.07 * turbulence(1.2 * normal);
     // Get noise using vertex position (low frequency)
     float low_noise = 1.5 * pnoise(0.19 * position, vec3(100.0));
     // Combine noises
     float displacement = -12.0 * vHighNoise + low_noise;
-
-    // Transform vertex position along the normal
-    vec3 newPosition = normal * displacement;
-
-    modelPosition.y *= vulcanoBase;
-    // modelPosition.y *= elevationZ + 0.8;
     
     vec4 viewPosition = viewMatrix * modelPosition;
     vec4 projectionPosition = projectionMatrix * viewPosition;
@@ -67,7 +69,7 @@ void main()
     gl_Position = projectionPosition;
 
     vUv = uv;
-    vElevation = elevationZ;
-    vVulcanoBase = vulcanoBase;
-    vVulcanoCrater = vulcanoCrater;
+    vElevation = elevationY;
+    vVulcanoBase = 1.0 - vulcanoBase;
+    vVulcanoCrater = 1.0 - vulcanoCrater;
 }
