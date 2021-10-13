@@ -26,6 +26,7 @@ const textureLoader = new THREE.TextureLoader()
 
 // Textures
 const lavaTexture = textureLoader.load("lava.png")
+// lavaTexture.wrapT = THREE.RepeatWrapping
 
 // Scene
 let scene = new THREE.Scene()
@@ -70,7 +71,6 @@ const extrudeSettings = {
 
 // Vulcano
 const vulcanoBboxSize = new THREE.Vector3()
-let vulcanoHeight = 0.0
 
 // Geometries
 // const torusGeometry = new THREE.TorusGeometry( .03, .01, 16, 100 )
@@ -346,14 +346,15 @@ const vulcanoMaterial = new THREE.ShaderMaterial({
       }
   },
 })
-gui.add(vulcanoMaterial.uniforms.uVulcanoHeight, 'value').min(0.1).max(1).step(0.001).name('uVulcanoHeight')
+gui.add(vulcanoMaterial.uniforms.uVulcanoHeight, 'value').min(0.1).max(3).step(0.001).name('uVulcanoHeight')
 gui.add(vulcanoMaterial.uniforms.uVulcanoDetails, 'value').min(0.0).max(5).step(0.001).name('uVulcanoDetails')
 gui.add(vulcanoMaterial.uniforms.uVulcanoCraterSize, 'value').min(0.0).max(1).step(0.001).name('uVulcanoCraterSize')
 
 // Meshes
 const plane = new THREE.Mesh(planeGeometry, vulcanoMaterial)
-plane.position.z = -1
-// scene.add(plane)
+plane.rotateX(-Math.PI/2)
+plane.position.z = 0
+scene.add(plane)
 const icosahedron = new THREE.Mesh(icosahedronGeometry, icosahedronMaterial)
 icosahedron.position.z = -50
 // scene.add(icosahedron)
@@ -393,7 +394,8 @@ const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.025
 scene.add(camera)
 
 // Controls
-// const controls = new OrbitControls(camera, canvas);
+camera.position.z = -1
+const controls = new OrbitControls(camera, canvas);
 
 /**
  * Renderer
@@ -443,13 +445,17 @@ renderer.xr.addEventListener('sessionend', () => {
 })
 
 // Controls
-function onSelectStart(){
-  this.userData.isSelecting = true
-  this.userData.skipFrames = 2
+function onSelectStart(event){
+  console.log(event)
+  if(reticle.visible){
+    this.userData.isSelecting = true
+    this.userData.skipFrames = 2
+  }
 }
 function onSelectEnd(){
-  this.userData.isSelecting = false
-  generateVulcano()
+  if(reticle.visible)
+    this.userData.isSelecting = false
+    generateVulcano()
 }
 
 controller = renderer.xr.getController(0)
@@ -491,6 +497,7 @@ const tick = () =>
     // Update objects
     icosahedron.rotation.y = .5 * elapsedTime
     icosahedronMaterial.uniforms['time'].value = 0.124 * elapsedTime
+    vulcanoMaterial.uniforms['uTime'].value = 0.124 * elapsedTime
 
     // Update controls
     handleController(controller)
