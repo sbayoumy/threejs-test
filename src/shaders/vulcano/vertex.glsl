@@ -52,7 +52,8 @@ void main()
 
     // Transform vertex position along the normal
     float newPositionY = (vulcanoFinal * uVulcanoHeight) + (elevationY * uVulcanoDetails);
-    modelPosition.y -= newPositionY;
+    // modelPosition.y -= newPositionY;
+    // modelPosition.y -= newPositionY;
     // modelPosition.y *= vulcanoBase;
 
     // Lava flow?

@@ -7,19 +7,14 @@ import { VertexNormalsHelper } from 'three/examples/jsm/helpers/VertexNormalsHel
 import Delaunator from 'delaunator'
 import * as Stats from 'stats.js'
 import * as dat from 'dat.gui'
+import * as noisejs from 'noisejs'
 import vulcanoVertexShader from './shaders/vulcano/vertex.glsl'
 import vulcanoFragmentShader from './shaders/vulcano/fragment.glsl'
+import { MathUtils, Vector2 } from 'three'
 
 // Canvas
 let canvas = document.querySelector('canvas.webgl')
 
-// Debug
-let gui = new dat.GUI()
-let stats = new Stats()
-stats.showPanel(0)
-gui.domElement.style.cssText = 'position:absolute;top:40px;left:80px;';
-stats.domElement.style.cssText = 'position:absolute;top:40px;';
-document.body.appendChild(stats.dom)
 
 // Loaders
 const textureLoader = new THREE.TextureLoader()
@@ -49,19 +44,22 @@ painter.setSize(0.74)
 painter.mesh.material.side = THREE.DoubleSide
 scene.add(painter.mesh)
 
+// Noise
+var noise = new noisejs.Noise(Math.random());
+
 // Shape
 const shape = new THREE.Shape()
 // Complex
-// shape.lineTo(0, 0.8)
-// shape.lineTo(0.2, 1)
-// shape.lineTo(0.6, 1.2)
-// shape.lineTo(0.9, 1.0)
-// shape.lineTo(1.2, 1.0)
-// shape.lineTo(1.5, 0.8)
-// shape.lineTo(1.8, 0.4)
-// shape.lineTo(1.8, 0)
-// shape.lineTo(1.2, -0.5)
-// shape.lineTo(0.2, -0.5)
+shape.lineTo(0, 0.8)
+shape.lineTo(0.2, 1)
+shape.lineTo(0.6, 1.2)
+shape.lineTo(0.9, 1.0)
+shape.lineTo(1.2, 1.0)
+shape.lineTo(1.5, 0.8)
+shape.lineTo(1.8, 0.4)
+shape.lineTo(1.8, 0)
+shape.lineTo(1.2, -0.5)
+shape.lineTo(0.2, -0.5)
 
 const extrudeSettings = {
 	curveSegments: 0,
@@ -71,13 +69,38 @@ const extrudeSettings = {
 
 // Vulcano
 const vulcanoBboxSize = new THREE.Vector3()
+const vulcanoHeight = 1.72
+const vulcanoDetails = 2.7
+const vulcanoCraterSize = 0.7
+const vulcanoCraterDepth = 1.0
+
+// Debug
+let gui = new dat.GUI()
+gui.domElement.style.cssText = 'position:absolute;top:40px;left:80px;';
+let stats = new Stats()
+stats.showPanel(0)
+stats.domElement.style.cssText = 'position:absolute;top:40px;';
+document.body.appendChild(stats.dom)
+// let debugObject = {
+//   vulcanoHeight: 1.72
+// }
+
+// gui.add(debugObject, debugObject.vulcanoHeight).min(0.1).max(3).step(0.001).name('VulcanoHeight')
+
+
+let rayCastHelper
+const rayCaster = new THREE.Raycaster()
+const pointer = new THREE.Vector2()
 
 // Geometries
 // const torusGeometry = new THREE.TorusGeometry( .03, .01, 16, 100 )
 const icosahedronGeometry = new THREE.IcosahedronGeometry(20, 20)
 const planeGeometry = new THREE.PlaneGeometry(1, 1, 100, 100)
 const reticleGeometry = new THREE.RingGeometry( 0.01, 0.015, 32).rotateX(-Math.PI/2)
-
+const vulcanoGeometry = new THREE.BufferGeometry()
+const geometryHelper = new THREE.ConeGeometry( 0.02, 0.07, 6 );
+geometryHelper.translate( 0, 0, 0 )
+geometryHelper.rotateY( Math.PI / 2 )
 
 // Materials
 const icosahedronMaterial = new THREE.ShaderMaterial({
@@ -319,7 +342,7 @@ const icosahedronMaterial = new THREE.ShaderMaterial({
 })
 const reticleMaterial = new THREE.MeshBasicMaterial()
 const contourMaterial = new THREE.MeshBasicMaterial({color: 0xffffff, wireframe: true})
-const pointsMaterial = new THREE.PointsMaterial({color: "yellow", size: 0.02})
+const pointsMaterial = new THREE.PointsMaterial({color: 0x99ccff, size: 0.02})
 const vulcanoMaterial = new THREE.ShaderMaterial({
     vertexShader: vulcanoVertexShader,
     fragmentShader: vulcanoFragmentShader,
@@ -346,22 +369,47 @@ const vulcanoMaterial = new THREE.ShaderMaterial({
       }
   },
 })
-gui.add(vulcanoMaterial.uniforms.uVulcanoHeight, 'value').min(0.1).max(3).step(0.001).name('uVulcanoHeight')
-gui.add(vulcanoMaterial.uniforms.uVulcanoDetails, 'value').min(0.0).max(5).step(0.001).name('uVulcanoDetails')
-gui.add(vulcanoMaterial.uniforms.uVulcanoCraterSize, 'value').min(0.0).max(1).step(0.001).name('uVulcanoCraterSize')
+// gui.add(vulcanoMaterial.uniforms.uVulcanoHeight, 'value').min(0.1).max(3).step(0.001).name('uVulcanoHeight')
+// gui.add(vulcanoMaterial.uniforms.uVulcanoDetails, 'value').min(0.0).max(5).step(0.001).name('uVulcanoDetails')
+// gui.add(vulcanoMaterial.uniforms.uVulcanoCraterSize, 'value').min(0.0).max(1).step(0.001).name('uVulcanoCraterSize')
 
 // Meshes
 const plane = new THREE.Mesh(planeGeometry, vulcanoMaterial)
 plane.rotateX(-Math.PI/2)
 plane.position.z = 0
-scene.add(plane)
+// scene.add(plane)
+plane.geometry.needsUpdate = true
+
+// Generate first then mesh
+generateVulcano()
+var vulcanoMesh = new THREE.Mesh(
+  vulcanoGeometry, // Re-use existing geometry
+  vulcanoMaterial
+)
+vulcanoMesh.rotateX(Math.PI/2)
+vulcanoMesh.position.setY(cursor.y)
+scene.add(vulcanoMesh)
+vulcanoMesh.geometry.attributes.uv.needsUpdate = true
+
 const icosahedron = new THREE.Mesh(icosahedronGeometry, icosahedronMaterial)
 icosahedron.position.z = -50
 // scene.add(icosahedron)
+
 const reticle = new THREE.Mesh(reticleGeometry,reticleMaterial)
 reticle.matrixAutoUpdate = false
 reticle.visible = false
 scene.add(reticle)
+rayCastHelper = new THREE.Mesh(geometryHelper, new THREE.MeshNormalMaterial())
+rayCastHelper.name = "raycaster"
+scene.add(rayCastHelper)
+
+// Points
+const points = new THREE.Points(vulcanoGeometry, pointsMaterial)
+vulcanoMesh.add(points)
+
+const vertexNormalsHelper = new VertexNormalsHelper(vulcanoMesh)
+// scene.add(vertexNormalsHelper)
+
 
 /**
  * Sizes
@@ -371,6 +419,7 @@ const sizes = {
     height: window.innerHeight
 }
 
+// Events
 window.addEventListener('resize', () =>
 {
     // Update sizes
@@ -385,6 +434,8 @@ window.addEventListener('resize', () =>
     renderer.setSize(sizes.width, sizes.height)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 })
+
+window.addEventListener( 'pointermove', onPointerMove );
 
 /**
  * Camera
@@ -540,10 +591,10 @@ loop()
 function generateVulcano()
 {
   const contourGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings)
-  var pointsAndUvs = generatePointsAndUvOnGeo(contourGeometry, 500)// <-- 0 Is points && 1 is UVs
+  var pointsAndUvs = generatePointsAndUvOnGeo(contourGeometry, 1000)// <-- 0 Is points && 1 is UVs
   var pointsArray = pointsAndUvs[0]
 
-  const vulcanoGeometry = new THREE.BufferGeometry().setFromPoints(pointsArray)
+  vulcanoGeometry.setFromPoints(pointsArray)
 
   // Contour
   const contour = new THREE.Mesh(contourGeometry, contourMaterial)
@@ -584,27 +635,29 @@ function generateVulcano()
   // scene.add(cube);
   var center = new THREE.Vector3()
   vulcanoGeometry.boundingBox.getCenter(center)
+  var bbox = vulcanoGeometry.boundingBox
+  let offset = new THREE.Vector2(0 - bbox.min.x, 0 - bbox.min.y);
+  let range = new THREE.Vector2(bbox.max.x - bbox.min.x, bbox.max.y - bbox.min.y);
   vulcanoGeometry.center()
   applyBoxUV(vulcanoGeometry, new THREE.Matrix4().invert(cube.matrix), uvMapSize)
   vulcanoGeometry.translate(center.x, center.y, center.z)
+
+  // Apply Z noise
+  for(let i = 0; i < vulcanoGeometry.attributes.position.count; i++){
+    let uv = new THREE.Vector2(vulcanoGeometry.attributes.uv.getX(i), vulcanoGeometry.attributes.uv.getY(i))
+    let position = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(i), vulcanoGeometry.attributes.position.getY(i), vulcanoGeometry.attributes.position.getZ(i))
+    let vulcanoBase = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 2.4)
+    let vulcanoCrater = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 3.7 + -vulcanoCraterSize)
+    let vulcanoFinal = MathUtils.lerp(vulcanoBase, -vulcanoCrater * vulcanoCraterDepth, 0.5)
+    let elevationZ = getElevation(position, 3)
+    let z = (vulcanoFinal * vulcanoHeight) + (elevationZ * vulcanoDetails)
+    vulcanoGeometry.attributes.position.setZ(i, position.z - z)
+  }
   vulcanoGeometry.attributes.uv.needsUpdate = true
+  vulcanoGeometry.attributes.position.needsUpdate = true
 
   vulcanoGeometry.computeVertexNormals()
   vulcanoGeometry.normalizeNormals()
-  var vulcanoMesh = new THREE.Mesh(
-    vulcanoGeometry, // Re-use existing geometry
-    vulcanoMaterial
-  )
-  vulcanoMesh.rotateX(Math.PI/2)
-  vulcanoMesh.position.setY(cursor.y)
-  scene.add(vulcanoMesh)
-
-  // Points
-  const points = new THREE.Points(vulcanoGeometry, pointsMaterial)
-  // contour.add(points)
-
-  const vertexNormalsHelper = new VertexNormalsHelper(vulcanoMesh)
-  // scene.add(vertexNormalsHelper)
   
 }
 
@@ -626,17 +679,15 @@ function generatePointsAndUvOnGeo(geometry, count) {
             bbox.min.z
         );
         if (isInside(v)){
-            points.push(v)
-            counter++
-          }
+          points.push(v)
+          counter++
+        }
     }
 
     function isInside(v){
         ray.set(v, dir)
         let counter = 0
         let pos = geometry.attributes.position
-        let offset = new THREE.Vector2(0 - bbox.min.x, 0 - bbox.min.y);
-        let range = new THREE.Vector2(bbox.max.x - bbox.min.x, bbox.max.y - bbox.min.y);
         let faces = pos.count / 3
         let vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3()
         for(let i = 0; i < faces; i++){
@@ -644,11 +695,11 @@ function generatePointsAndUvOnGeo(geometry, count) {
             vB.fromBufferAttribute(pos, i * 3 + 1)
             vC.fromBufferAttribute(pos, i * 3 + 2)
             if (ray.intersectTriangle(vA, vB, vC, false, dummyTarget)){
-                uvs.push([
-                    new THREE.Vector2((vA.x + offset.x)/range.x ,(vA.y + offset.y)/range.y),
-                    new THREE.Vector2((vB.x + offset.x)/range.x ,(vB.y + offset.y)/range.y),
-                    new THREE.Vector2((vC.x + offset.x)/range.x ,(vC.y + offset.y)/range.y)
-                ])
+                // uvs.push([
+                //     new THREE.Vector2((vA.x + offset.x)/range.x ,(vA.y + offset.y)/range.y),
+                //     new THREE.Vector2((vB.x + offset.x)/range.x ,(vB.y + offset.y)/range.y),
+                //     new THREE.Vector2((vC.x + offset.x)/range.x ,(vC.y + offset.y)/range.y)
+                // ])
                 counter++
             }
       }
@@ -821,3 +872,37 @@ function _applyBoxUV(geom, transformMatrix, bbox, bbox_max_size) {
     _applyBoxUV(bufferGeometry, transformMatrix, uvBbox, boxSize);
   
   }
+
+function onPointerMove( event ) {
+
+  pointer.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
+  pointer.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
+  rayCaster.setFromCamera( pointer, camera );
+
+  // See if the ray from the camera into the world hits one of our meshes
+  var objects = [];
+  objects.push(vulcanoMesh)
+  const intersects = rayCaster.intersectObjects( objects);
+
+  // Toggle rotation bool for meshes that we clicked
+  if ( intersects.length > 0) {
+    // console.log(intersects)
+
+    rayCastHelper.position.set( 0, 0, 0 );
+    rayCastHelper.lookAt( intersects[ 0 ].face.normal );
+
+    rayCastHelper.position.copy( intersects[ 0 ].point );
+
+  }
+
+}
+
+function getElevation(_position, _frequency){
+  var elevation = 0.0;
+    for(var i = 1.0; i < _frequency; i++)
+    {
+        var frequency = i;
+        elevation += noise.perlin2(_position.x * frequency * 20.0, _position.y * frequency * 20) / 85.0;
+    }
+    return elevation;
+}
