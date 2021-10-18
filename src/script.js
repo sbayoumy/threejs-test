@@ -10,7 +10,9 @@ import * as dat from 'dat.gui'
 import * as noisejs from 'noisejs'
 import vulcanoVertexShader from './shaders/vulcano/vertex.glsl'
 import vulcanoFragmentShader from './shaders/vulcano/fragment.glsl'
-import { MathUtils, Vector2 } from 'three'
+import lavaVertexShader from './shaders/lavaflow/vertex.glsl'
+import lavaFragmentShader from './shaders/lavaflow/fragment.glsl'
+import { Material, MathUtils, Mesh, Vector3 } from 'three'
 
 // Canvas
 let canvas = document.querySelector('canvas.webgl')
@@ -68,11 +70,11 @@ const extrudeSettings = {
 };
 
 // Vulcano
-const vulcanoBboxSize = new THREE.Vector3()
-const vulcanoHeight = 1.72
-const vulcanoDetails = 2.7
-const vulcanoCraterSize = 0.7
-const vulcanoCraterDepth = 1.0
+var vulcanoBboxSize = new THREE.Vector3()
+var vulcanoHeight = 1.72
+var vulcanoDetails = 2.7
+var vulcanoCraterSize = 0.7
+var vulcanoCraterDepth = 1.0
 
 // Debug
 let gui = new dat.GUI()
@@ -81,16 +83,33 @@ let stats = new Stats()
 stats.showPanel(0)
 stats.domElement.style.cssText = 'position:absolute;top:40px;';
 document.body.appendChild(stats.dom)
-// let debugObject = {
-//   vulcanoHeight: 1.72
-// }
-
-// gui.add(debugObject, debugObject.vulcanoHeight).min(0.1).max(3).step(0.001).name('VulcanoHeight')
-
+var debugObject = {
+  vulcanoHeight: 1.72,
+  vulcanoDetails: 2.7,
+  vulcanoCraterSize: 0.7,
+  vulcanoCraterDepth: 1.0,
+}
+gui.add(debugObject, "vulcanoHeight").min(0.1).max(3).step(0.001).name('Vulcano Height').onFinishChange(() =>{
+  vulcanoHeight = debugObject.vulcanoHeight
+  applyVulcanoChanges()
+})
+gui.add(debugObject, "vulcanoDetails").min(0).max(5).step(0.001).name('Vulcano Details').onFinishChange(() =>{
+  vulcanoDetails = debugObject.vulcanoDetails
+  applyVulcanoChanges()
+})
+gui.add(debugObject, "vulcanoCraterSize").min(0).max(1).step(0.001).name('Vulcano Crater Size').onFinishChange(() =>{
+  vulcanoCraterSize = debugObject.vulcanoCraterSize
+  applyVulcanoChanges()
+})
+gui.add(debugObject, "vulcanoCraterDepth").min(0.1).max(2).step(0.001).name('Vulcano Crater Depth').onFinishChange(() =>{
+  vulcanoCraterDepth = debugObject.vulcanoCraterDepth
+  applyVulcanoChanges()
+})
 
 let rayCastHelper
 const rayCaster = new THREE.Raycaster()
 const pointer = new THREE.Vector2()
+const clickedFaces = [];
 
 // Geometries
 // const torusGeometry = new THREE.TorusGeometry( .03, .01, 16, 100 )
@@ -114,231 +133,8 @@ const icosahedronMaterial = new THREE.ShaderMaterial({
             value: 0.0
         }
     },
-    vertexShader:
-        `
-        //
-        // GLSL textureless classic 3D noise "cnoise",
-        // with an RSL-style periodic variant "pnoise".
-        // Author:  Stefan Gustavson (stefan.gustavson@liu.se)
-        // Version: 2011-10-11
-        //
-        // Many thanks to Ian McEwan of Ashima Arts for the
-        // ideas for permutation and gradient selection.
-        //
-        // Copyright (c) 2011 Stefan Gustavson. All rights reserved.
-        // Distributed under the MIT license. See LICENSE file.
-        // https://github.com/stegu/webgl-noise
-        //
-        vec3 mod289(vec3 x)
-        {
-        return x - floor(x * (1.0 / 289.0)) * 289.0;
-        }
-
-        vec4 mod289(vec4 x)
-        {
-        return x - floor(x * (1.0 / 289.0)) * 289.0;
-        }
-
-        vec4 permute(vec4 x)
-        {
-        return mod289(((x*34.0)+10.0)*x);
-        }
-
-        vec4 taylorInvSqrt(vec4 r)
-        {
-        return 1.79284291400159 - 0.85373472095314 * r;
-        }
-
-        vec3 fade(vec3 t) {
-        return t*t*t*(t*(t*6.0-15.0)+10.0);
-        }
-
-        // Classic Perlin noise
-        float cnoise(vec3 P)
-        {
-        vec3 Pi0 = floor(P); // Integer part for indexing
-        vec3 Pi1 = Pi0 + vec3(1.0); // Integer part + 1
-        Pi0 = mod289(Pi0);
-        Pi1 = mod289(Pi1);
-        vec3 Pf0 = fract(P); // Fractional part for interpolation
-        vec3 Pf1 = Pf0 - vec3(1.0); // Fractional part - 1.0
-        vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
-        vec4 iy = vec4(Pi0.yy, Pi1.yy);
-        vec4 iz0 = Pi0.zzzz;
-        vec4 iz1 = Pi1.zzzz;
-
-        vec4 ixy = permute(permute(ix) + iy);
-        vec4 ixy0 = permute(ixy + iz0);
-        vec4 ixy1 = permute(ixy + iz1);
-
-        vec4 gx0 = ixy0 * (1.0 / 7.0);
-        vec4 gy0 = fract(floor(gx0) * (1.0 / 7.0)) - 0.5;
-        gx0 = fract(gx0);
-        vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
-        vec4 sz0 = step(gz0, vec4(0.0));
-        gx0 -= sz0 * (step(0.0, gx0) - 0.5);
-        gy0 -= sz0 * (step(0.0, gy0) - 0.5);
-
-        vec4 gx1 = ixy1 * (1.0 / 7.0);
-        vec4 gy1 = fract(floor(gx1) * (1.0 / 7.0)) - 0.5;
-        gx1 = fract(gx1);
-        vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
-        vec4 sz1 = step(gz1, vec4(0.0));
-        gx1 -= sz1 * (step(0.0, gx1) - 0.5);
-        gy1 -= sz1 * (step(0.0, gy1) - 0.5);
-
-        vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
-        vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
-        vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
-        vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
-        vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
-        vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
-        vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
-        vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
-
-        vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
-        g000 *= norm0.x;
-        g010 *= norm0.y;
-        g100 *= norm0.z;
-        g110 *= norm0.w;
-        vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
-        g001 *= norm1.x;
-        g011 *= norm1.y;
-        g101 *= norm1.z;
-        g111 *= norm1.w;
-
-        float n000 = dot(g000, Pf0);
-        float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
-        float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
-        float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
-        float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
-        float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
-        float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
-        float n111 = dot(g111, Pf1);
-
-        vec3 fade_xyz = fade(Pf0);
-        vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
-        vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
-        float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x); 
-        return 2.2 * n_xyz;
-        }
-
-        // Classic Perlin noise, periodic variant
-        float pnoise(vec3 P, vec3 rep)
-        {
-        vec3 Pi0 = mod(floor(P), rep); // Integer part, modulo period
-        vec3 Pi1 = mod(Pi0 + vec3(1.0), rep); // Integer part + 1, mod period
-        Pi0 = mod289(Pi0);
-        Pi1 = mod289(Pi1);
-        vec3 Pf0 = fract(P); // Fractional part for interpolation
-        vec3 Pf1 = Pf0 - vec3(1.0); // Fractional part - 1.0
-        vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
-        vec4 iy = vec4(Pi0.yy, Pi1.yy);
-        vec4 iz0 = Pi0.zzzz;
-        vec4 iz1 = Pi1.zzzz;
-
-        vec4 ixy = permute(permute(ix) + iy);
-        vec4 ixy0 = permute(ixy + iz0);
-        vec4 ixy1 = permute(ixy + iz1);
-
-        vec4 gx0 = ixy0 * (1.0 / 7.0);
-        vec4 gy0 = fract(floor(gx0) * (1.0 / 7.0)) - 0.5;
-        gx0 = fract(gx0);
-        vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
-        vec4 sz0 = step(gz0, vec4(0.0));
-        gx0 -= sz0 * (step(0.0, gx0) - 0.5);
-        gy0 -= sz0 * (step(0.0, gy0) - 0.5);
-
-        vec4 gx1 = ixy1 * (1.0 / 7.0);
-        vec4 gy1 = fract(floor(gx1) * (1.0 / 7.0)) - 0.5;
-        gx1 = fract(gx1);
-        vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
-        vec4 sz1 = step(gz1, vec4(0.0));
-        gx1 -= sz1 * (step(0.0, gx1) - 0.5);
-        gy1 -= sz1 * (step(0.0, gy1) - 0.5);
-
-        vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
-        vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
-        vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
-        vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
-        vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
-        vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
-        vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
-        vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
-
-        vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
-        g000 *= norm0.x;
-        g010 *= norm0.y;
-        g100 *= norm0.z;
-        g110 *= norm0.w;
-        vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
-        g001 *= norm1.x;
-        g011 *= norm1.y;
-        g101 *= norm1.z;
-        g111 *= norm1.w;
-
-        float n000 = dot(g000, Pf0);
-        float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
-        float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
-        float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
-        float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
-        float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
-        float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
-        float n111 = dot(g111, Pf1);
-
-        vec3 fade_xyz = fade(Pf0);
-        vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
-        vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
-        float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x); 
-        return 2.2 * n_xyz;
-        }
-
-        // Start vertex shader
-
-        varying vec2 vUv;
-        varying float high_noise;
-        uniform float time;
-
-        float turbulence(vec3 p){
-            float w = 10.0;
-            float t = -0.1;
-
-            for(float f = 1.0; f <= 10.0; f++){
-                float power = pow(2.0, f);
-                t += abs(pnoise(vec3(power * p), vec3(10.0, 10.0, 10.0)) / power);
-            }
-            return t;
-        }
-
-        void main() {
-            vUv = uv;
-
-            // Get turbulent noise using normal (high frequency)
-            high_noise = 12.0 * -0.07 * turbulence(1.2 * normal + time);
-            // Get noise using vertex position (low frequency)
-            float low_noise = 1.5 * pnoise(0.19 * position, vec3(100.0));
-            // Combine noises
-            float displacement = -12.0 * high_noise + low_noise;
-
-            // Transform vertex position along the normal
-            vec3 newPosition = position + normal * displacement;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
-        }
-        `, 
-    fragmentShader:
-        `
-        varying vec2 vUv;
-        varying float high_noise;
-        uniform sampler2D tLava;
-
-        void main() {
-            
-            // Apply color in the texture using noise
-            vec2 tPos = vec2(0.0, -1.5 * high_noise + 0.43);
-            vec4 color = texture2D(tLava, tPos);
-            gl_FragColor = vec4( color.rgb, 1.0);
-        }
-        `
+    vertexShader: lavaVertexShader, 
+    fragmentShader: lavaFragmentShader
 })
 const reticleMaterial = new THREE.MeshBasicMaterial()
 const contourMaterial = new THREE.MeshBasicMaterial({color: 0xffffff, wireframe: true})
@@ -346,6 +142,7 @@ const pointsMaterial = new THREE.PointsMaterial({color: 0x99ccff, size: 0.02})
 const vulcanoMaterial = new THREE.ShaderMaterial({
     vertexShader: vulcanoVertexShader,
     fragmentShader: vulcanoFragmentShader,
+    vertexColors: THREE.VertexColors,
     uniforms: {
       tLava: {
           type: "t",
@@ -410,6 +207,9 @@ vulcanoMesh.add(points)
 const vertexNormalsHelper = new VertexNormalsHelper(vulcanoMesh)
 // scene.add(vertexNormalsHelper)
 
+// Gradient Descent
+// var estimate = {x: 1, y: 2, z: 0}
+
 
 /**
  * Sizes
@@ -435,7 +235,7 @@ window.addEventListener('resize', () =>
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 })
 
-window.addEventListener( 'pointermove', onPointerMove );
+window.addEventListener( 'click', onMouseDown );
 
 /**
  * Camera
@@ -549,6 +349,7 @@ const tick = () =>
     icosahedron.rotation.y = .5 * elapsedTime
     icosahedronMaterial.uniforms['time'].value = 0.124 * elapsedTime
     vulcanoMaterial.uniforms['uTime'].value = 0.124 * elapsedTime
+    // getGradientDescent()
 
     // Update controls
     handleController(controller)
@@ -642,23 +443,10 @@ function generateVulcano()
   applyBoxUV(vulcanoGeometry, new THREE.Matrix4().invert(cube.matrix), uvMapSize)
   vulcanoGeometry.translate(center.x, center.y, center.z)
 
-  // Apply Z noise
-  for(let i = 0; i < vulcanoGeometry.attributes.position.count; i++){
-    let uv = new THREE.Vector2(vulcanoGeometry.attributes.uv.getX(i), vulcanoGeometry.attributes.uv.getY(i))
-    let position = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(i), vulcanoGeometry.attributes.position.getY(i), vulcanoGeometry.attributes.position.getZ(i))
-    let vulcanoBase = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 2.4)
-    let vulcanoCrater = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 3.7 + -vulcanoCraterSize)
-    let vulcanoFinal = MathUtils.lerp(vulcanoBase, -vulcanoCrater * vulcanoCraterDepth, 0.5)
-    let elevationZ = getElevation(position, 3)
-    let z = (vulcanoFinal * vulcanoHeight) + (elevationZ * vulcanoDetails)
-    vulcanoGeometry.attributes.position.setZ(i, position.z - z)
-  }
-  vulcanoGeometry.attributes.uv.needsUpdate = true
-  vulcanoGeometry.attributes.position.needsUpdate = true
+  applyVulcanoChanges()
 
   vulcanoGeometry.computeVertexNormals()
   vulcanoGeometry.normalizeNormals()
-  
 }
 
 function generatePointsAndUvOnGeo(geometry, count) {   
@@ -713,12 +501,11 @@ function _applyBoxUV(geom, transformMatrix, bbox, bbox_max_size) {
 
     let coords = [];
     coords.length = 2 * geom.attributes.position.array.length / 3;
-  
-    // geom.removeAttribute('uv');
+
     if (geom.attributes.uv === undefined) {
       geom.addAttribute('uv', new THREE.Float32BufferAttribute(coords, 2));
     }
-    
+
     //maps 3 verts of 1 face on the better side of the cube
     //side of the cube can be XY, XZ or YZ
     let makeUVs = function(v0, v1, v2) {
@@ -873,7 +660,7 @@ function _applyBoxUV(geom, transformMatrix, bbox, bbox_max_size) {
   
   }
 
-function onPointerMove( event ) {
+function onMouseDown( event ) {
 
   pointer.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
   pointer.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
@@ -886,7 +673,14 @@ function onPointerMove( event ) {
 
   // Toggle rotation bool for meshes that we clicked
   if ( intersects.length > 0) {
-    // console.log(intersects)
+    clickedFaces.push(intersects[0].face)
+    var position = intersects[0].point
+
+    var geometry = new THREE.SphereGeometry( 0.02, 8, 8)
+    var material = new THREE.MeshBasicMaterial({color: "red", side: THREE.DoubleSide})
+    var sphere = new Mesh(geometry, material)
+    sphere.position.set(position.x, position.y, position.z)
+    scene.add(sphere)
 
     rayCastHelper.position.set( 0, 0, 0 );
     rayCastHelper.lookAt( intersects[ 0 ].face.normal );
@@ -895,6 +689,69 @@ function onPointerMove( event ) {
 
   }
 
+  if (clickedFaces.length > 1){
+    console.log(clickedFaces.slice(-2))
+    bfs(...clickedFaces.slice(-2));
+    let familyLine = [];
+    traverseParents(clickedFaces.slice(-1)[0], familyLine);
+    familyLine.forEach(function(face){
+      console.log(face)
+
+      mesh.geometry.colorsNeedUpdate = true;
+    })
+  }
+
+}
+
+// Breadth-first search
+function bfs(source, destination){
+  // TODO this leaves parent on each mesh.geometry.face. Kinda bad since they are specific to src & dst
+  var S = new Set([source]);
+  var Q = [];
+  Q.push(source);
+  while(Q.length > 0){
+      renderer.render(scene, camera);
+      var current = Q.shift();
+      if (current == destination){
+          return current;
+      }
+      console.log(current);
+      current.forEach(function(face) {
+          if (!S.has(face)) {
+              S.add(face);
+              face.color.setHSL(0.5, S.size / 200 % 1, 0.5);
+              mesh.geometry.colorsNeedUpdate = true;
+              face.parent = current;
+              Q.push(face);
+          }
+      });
+  }
+}
+
+function traverseParents(face, familyLine){
+  var familyLine = familyLine || [];
+  familyLine.push(face);
+  if (face.hasOwnProperty('parent')){
+      traverseParents(face.parent, familyLine)
+  }
+}
+
+function applyVulcanoChanges()
+{
+  // Apply Z noise
+  for(let i = 0; i < vulcanoGeometry.attributes.position.count; i++){
+    let uv = new THREE.Vector2(vulcanoGeometry.attributes.uv.getX(i), vulcanoGeometry.attributes.uv.getY(i))
+    let position = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(i), vulcanoGeometry.attributes.position.getY(i), vulcanoGeometry.attributes.position.getZ(i))
+    let vulcanoBase = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 2.4)
+    let vulcanoCrater = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 3.7 + -vulcanoCraterSize)
+    let vulcanoFinal = MathUtils.lerp(vulcanoBase, -vulcanoCrater * vulcanoCraterDepth, 0.5)
+    let elevationZ = getElevation(position, 3)
+    let z = (vulcanoFinal * vulcanoHeight) + (elevationZ * vulcanoDetails)
+    vulcanoGeometry.attributes.position.setZ(i, -z)
+  }
+  vulcanoGeometry.computeBoundingBox()
+  vulcanoGeometry.attributes.uv.needsUpdate = true
+  vulcanoGeometry.attributes.position.needsUpdate = true
 }
 
 function getElevation(_position, _frequency){
@@ -906,3 +763,26 @@ function getElevation(_position, _frequency){
     }
     return elevation;
 }
+
+// function getGradientDescent(){
+//   var alpha = 1 / 50
+//   var speed = 1
+//   var oldEstimate = Object.assign({}, estimate)
+//   var geometry = new THREE.SphereGeometry( 0.2, 12, 12)
+//   var material = new THREE.MeshBasicMaterial({color: "red", side: THREE.DoubleSide})
+//   var sphere = new Mesh(geometry, material)
+//   sphere.position.set(estimate.x, estimate.y, estimate.z)
+//   scene.add(sphere)
+
+//   // Calculate gradient for every axis and update model weights
+//   estimate.x -= 2 * estimate.x * alpha
+//   estimate.y -= 2 * estimate.y * alpha
+
+//   // Iterate through until delta between steps is minimum
+//   if(Math.abs(oldEstimate.x - estimate.x) > 0.001 || Math.abs(oldEstimate.y - estimate.y) > 0.001)
+//   {
+//     setTimeout(function() {
+//       getGradientDescent()
+//     }, Math.abs(100-speed) * 100)
+//   }
+// }
