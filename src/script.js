@@ -12,7 +12,7 @@ import vulcanoVertexShader from './shaders/vulcano/vertex.glsl'
 import vulcanoFragmentShader from './shaders/vulcano/fragment.glsl'
 import lavaVertexShader from './shaders/lavaflow/vertex.glsl'
 import lavaFragmentShader from './shaders/lavaflow/fragment.glsl'
-import { Material, MathUtils, Mesh, Vector3 } from 'three'
+import { ConeBufferGeometry, Material, MathUtils, Mesh, Vector3 } from 'three'
 
 // Canvas
 let canvas = document.querySelector('canvas.webgl')
@@ -805,68 +805,75 @@ function getElevation(_position, _frequency){
 }
 
 function getGradientDescent(_estimate){
-  var alpha = 1 / 50
+  // TODO: Algo gets stuck when the current face with the lowest point, while it could use nearby face for next iteration
   var speed = 1
-  // TODO: check for old estimate index [0] to be correct
   var oldEstimate = Object.assign({}, _estimate)
-  var oldEstimatePosition = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(oldEstimate[0]), vulcanoGeometry.attributes.position.getY(oldEstimate[0]), vulcanoGeometry.attributes.position.getZ(oldEstimate[0]))
-  var estimatePosition = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[index]), vulcanoGeometry.attributes.position.getY(_estimate[0]), vulcanoGeometry.attributes.position.getZ(_estimate[0]))
-
+  var index = 0
+  var faceIndex = 0
+  var oldEstimatePosition = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(oldEstimate[index]), vulcanoGeometry.attributes.position.getY(oldEstimate[index]), vulcanoGeometry.attributes.position.getZ(oldEstimate[index]))
+  console.log("Old estimate position:", oldEstimatePosition, oldEstimate[index]);
+  
   // Debug neighbors
-  var geometry = new THREE.SphereGeometry( 0.02, 8, 8)
+  var geometry = new THREE.SphereGeometry( 0.01, 8, 8)
   var material = new THREE.MeshBasicMaterial({color: "red", side: THREE.DoubleSide})
 
   // Calculate gradient for every axis and update model weights
-  var index = 0
-  for(var i = 0; i < _estimate.length; i++)
+  for(var i = 0; i < _estimate.length; i += 3)
   {
-    var position = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[i]), vulcanoGeometry.attributes.position.getY(_estimate[i]), vulcanoGeometry.attributes.position.getZ(_estimate[i]))
-
-    // Debug sphere
-    var sphere = new Mesh(geometry, material)
+    for(var j = 0; j < 3; ++j){
+      var position = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[i + j]), vulcanoGeometry.attributes.position.getY(_estimate[i + j]), vulcanoGeometry.attributes.position.getZ(_estimate[i + j]))
+      // Debug sphere
+      var sphere = new Mesh(geometry, material)
       sphere.position.set(position.x, position.y, position.z)
       vulcanoMesh.add(sphere)
-    if(position.z > estimatePosition.z){
-      // Found lowest valued z position vertex in neighbors
-      estimatePosition = position
-      index = i
-    }
-  }
-
-  // Iterate through until delta between steps is minimum
-  if(Math.abs(oldEstimatePosition.z - estimatePosition.z) > 0.001)
-  {
-    console.log("Doown");
-    var geometry = new THREE.SphereGeometry( 0.02, 12, 12)
-    var material = new THREE.MeshBasicMaterial({color: "yellow", side: THREE.DoubleSide})
-    var sphere = new Mesh(geometry, material)
-    sphere.position.set(estimatePosition.x, estimatePosition.y, estimatePosition.z)
-    vulcanoMesh.add(sphere)
-
-    const indexAttribute = vulcanoGeometry.getIndex();
-    const indices = indexAttribute.array;
-    const vertIds = _estimate.slice(index, index+3)
-    console.log(_estimate, index)
-    console.log(vertIds)
-    const neighbors = []; // note: self will be added to list
-    for (let i = 0; i < indices.length; i += 3) {
-      for (let j = 0; j < 3; ++j) {
-        const p0Ndx = indices[i + j];
-        const p1Ndx = indices[i + (j + 1) % 3];
-        if ((p0Ndx === vertIds[0] && p1Ndx === vertIds[1]) ||
-            (p0Ndx === vertIds[1] && p1Ndx === vertIds[0]) ||
-            (p0Ndx === vertIds[1] && p1Ndx === vertIds[2]) ||
-            (p0Ndx === vertIds[2] && p1Ndx === vertIds[1]) ||
-            (p0Ndx === vertIds[2] && p1Ndx === vertIds[0]) ||
-            (p0Ndx === vertIds[0] && p1Ndx === vertIds[2])) {
-            neighbors.push(...indices.slice(i, i + 3));
-            break;
-        }
+      if(oldEstimatePosition.z < position.z){
+        // Found lower valued z position vertex in neighbor face
+        index = i + j
+        faceIndex = i
       }
     }
-    console.log(neighbors)
-    setTimeout(function() {
-      getGradientDescent(neighbors)
-    }, Math.abs(speed) * 100)
   }
+  var estimatePosition = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[faceIndex]), vulcanoGeometry.attributes.position.getY(_estimate[faceIndex]), vulcanoGeometry.attributes.position.getZ(_estimate[faceIndex]))
+  var estimatePosition2 = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[faceIndex + 1]), vulcanoGeometry.attributes.position.getY(_estimate[faceIndex + 1]), vulcanoGeometry.attributes.position.getZ(_estimate[faceIndex + 1]))
+  var estimatePosition3 = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[faceIndex + 2]), vulcanoGeometry.attributes.position.getY(_estimate[faceIndex + 2]), vulcanoGeometry.attributes.position.getZ(_estimate[faceIndex + 2]))
+
+  console.log("New estimate position: ", estimatePosition, _estimate[faceIndex])
+
+  var material = new THREE.MeshBasicMaterial({color: "yellow", side: THREE.DoubleSide})
+  var sphere = new Mesh(geometry, material)
+  var sphere2 = new Mesh(geometry, material)
+  var sphere3 = new Mesh(geometry, material)
+  sphere.position.set(estimatePosition.x, estimatePosition.y, estimatePosition.z)
+  sphere2.position.set(estimatePosition2.x, estimatePosition2.y, estimatePosition2.z)
+  sphere3.position.set(estimatePosition3.x, estimatePosition3.y, estimatePosition3.z)
+  vulcanoMesh.add(sphere)
+  vulcanoMesh.add(sphere2)
+  vulcanoMesh.add(sphere3)
+
+  const indexAttribute = vulcanoGeometry.getIndex();
+  const indices = indexAttribute.array;
+  const vertIds = _estimate.slice(faceIndex, faceIndex+3)
+  console.log(_estimate, faceIndex)
+  console.log(vertIds)
+  const neighbors = vertIds; // note: self will be added to list
+  for (let i = 0; i < indices.length; i += 3) {
+    for (let j = 0; j < 3; ++j) {
+      const p0Ndx = indices[i + j];
+      const p1Ndx = indices[i + (j + 1) % 3];
+      if ((p0Ndx === vertIds[0] && p1Ndx === vertIds[1]) ||
+          (p0Ndx === vertIds[1] && p1Ndx === vertIds[0]) ||
+          (p0Ndx === vertIds[1] && p1Ndx === vertIds[2]) ||
+          (p0Ndx === vertIds[2] && p1Ndx === vertIds[1]) ||
+          (p0Ndx === vertIds[2] && p1Ndx === vertIds[0]) ||
+          (p0Ndx === vertIds[0] && p1Ndx === vertIds[2])) {
+          neighbors.push(...indices.slice(i, i + 3))
+          break;
+      }
+    }
+  }
+  console.log("New neighbors: " + neighbors)
+  setTimeout(function() {
+    getGradientDescent(neighbors)
+  }, Math.abs(speed) * 100)
+  
 }
