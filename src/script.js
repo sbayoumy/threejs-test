@@ -697,34 +697,34 @@ function onMouseDown( event ) {
     const indexAttribute = vulcanoGeometry.getIndex();
     const indices = indexAttribute.array;
     const vertIds = indices.slice(faceIndex * 3, faceIndex * 3 + 3);
-    const neighbors = []; // note: self will be added to list
-    for (let i = 0; i < indices.length; i += 3) {
-      for (let j = 0; j < 3; ++j) {
-        const p0Ndx = indices[i + j];
-        const p1Ndx = indices[i + (j + 1) % 3];
-        if ((p0Ndx === vertIds[0] && p1Ndx === vertIds[1]) ||
-            (p0Ndx === vertIds[1] && p1Ndx === vertIds[0]) ||
-            (p0Ndx === vertIds[1] && p1Ndx === vertIds[2]) ||
-            (p0Ndx === vertIds[2] && p1Ndx === vertIds[1]) ||
-            (p0Ndx === vertIds[2] && p1Ndx === vertIds[0]) ||
-            (p0Ndx === vertIds[0] && p1Ndx === vertIds[2])) {
-            neighbors.push(...indices.slice(i, i + 3));
-            break;
-        }
-      }
-    }
-
-    getGradientDescent(neighbors)
-
-    // Debug neighbors
-    // var geometry = new THREE.SphereGeometry( 0.02, 8, 8)
-    // var material = new THREE.MeshBasicMaterial({color: "red", side: THREE.DoubleSide})
-    // for(let i = 0; i < neighbors.length; i++){
-    //   var position = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(neighbors[i]), vulcanoGeometry.attributes.position.getY(neighbors[i]), vulcanoGeometry.attributes.position.getZ(neighbors[i]))
-    //   var sphere = new Mesh(geometry, material)
-    //   sphere.position.set(position.x, position.y, position.z)
-    //   vulcanoMesh.add(sphere)
+    // const neighbors = []; // note: self will be added to list
+    // for (let i = 0; i < indices.length; i += 3) {
+    //   for (let j = 0; j < 3; ++j) {
+    //     const p0Ndx = indices[i + j];
+    //     const p1Ndx = indices[i + (j + 1) % 3];
+    //     if ((p0Ndx === vertIds[0] && p1Ndx === vertIds[1]) ||
+    //         (p0Ndx === vertIds[1] && p1Ndx === vertIds[0]) ||
+    //         (p0Ndx === vertIds[1] && p1Ndx === vertIds[2]) ||
+    //         (p0Ndx === vertIds[2] && p1Ndx === vertIds[1]) ||
+    //         (p0Ndx === vertIds[2] && p1Ndx === vertIds[0]) ||
+    //         (p0Ndx === vertIds[0] && p1Ndx === vertIds[2])) {
+    //         neighbors.push(...indices.slice(i, i + 3));
+    //         break;
+    //     }
+    //   }
     // }
+    // // Remove current face in neighbor
+    // for (let i = 0; i < neighbors.length; i += 3)
+    // {
+    //   if (vertIds[0] == neighbors[i] && 
+    //     vertIds[1] == neighbors[i + 1] && 
+    //     vertIds[2] == neighbors[i + 2])
+    //   {
+    //     neighbors.splice(i, 3)
+    //   }
+    // }
+      
+    getGradientDescent(vertIds)
 
     var position = intersects[0].point
     rayCastHelper.position.set( 0, 0, 0 );
@@ -732,49 +732,7 @@ function onMouseDown( event ) {
     rayCastHelper.position.copy( intersects[ 0 ].point );
 
   }
-
-  // if (clickedFaces.length > 1){
-  //   bfs(...clickedFaces.slice(-2));
-  //   let familyLine = [];
-  //   traverseParents(clickedFaces.slice(-1)[0], familyLine);
-  //   familyLine.forEach(function(face){
-  //     mesh.geometry.colorsNeedUpdate = true;
-  //   })
-  // }
-
 }
-
-// Breadth-first search
-// function bfs(source, destination){
-//   // TODO this leaves parent on each mesh.geometry.face. Kinda bad since they are specific to src & dst
-//   var S = new Set([source]);
-//   var Q = [];
-//   Q.push(source);
-//   while(Q.length > 0){
-//       renderer.render(scene, camera);
-//       var current = Q.shift();
-//       if (current == destination){
-//           return current;
-//       }
-//       current.forEach(function(face) {
-//           if (!S.has(face)) {
-//               S.add(face);
-//               face.color.setHSL(0.5, S.size / 200 % 1, 0.5);
-//               mesh.geometry.colorsNeedUpdate = true;
-//               face.parent = current;
-//               Q.push(face);
-//           }
-//       });
-//   }
-// }
-
-// function traverseParents(face, familyLine){
-//   var familyLine = familyLine || [];
-//   familyLine.push(face);
-//   if (face.hasOwnProperty('parent')){
-//       traverseParents(face.parent, familyLine)
-//   }
-// }
 
 function applyVulcanoChanges()
 {
@@ -805,57 +763,22 @@ function getElevation(_position, _frequency){
 }
 
 function getGradientDescent(_estimate){
-  // TODO: Algo gets stuck when the current face with the lowest point, while it could use nearby face for next iteration
-  var speed = 1
   var oldEstimate = Object.assign({}, _estimate)
-  var index = 0
   var faceIndex = 0
-  var oldEstimatePosition = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(oldEstimate[index]), vulcanoGeometry.attributes.position.getY(oldEstimate[index]), vulcanoGeometry.attributes.position.getZ(oldEstimate[index]))
-  console.log("Old estimate position:", oldEstimatePosition, oldEstimate[index]);
-  
-  // Debug neighbors
-  var geometry = new THREE.SphereGeometry( 0.01, 8, 8)
-  var material = new THREE.MeshBasicMaterial({color: "red", side: THREE.DoubleSide})
-
-  // Calculate gradient for every axis and update model weights
-  for(var i = 0; i < _estimate.length; i += 3)
-  {
-    for(var j = 0; j < 3; ++j){
-      var position = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[i + j]), vulcanoGeometry.attributes.position.getY(_estimate[i + j]), vulcanoGeometry.attributes.position.getZ(_estimate[i + j]))
-      // Debug sphere
-      var sphere = new Mesh(geometry, material)
-      sphere.position.set(position.x, position.y, position.z)
-      vulcanoMesh.add(sphere)
-      if(oldEstimatePosition.z < position.z){
-        // Found lower valued z position vertex in neighbor face
-        index = i + j
-        faceIndex = i
-      }
-    }
-  }
-  var estimatePosition = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[faceIndex]), vulcanoGeometry.attributes.position.getY(_estimate[faceIndex]), vulcanoGeometry.attributes.position.getZ(_estimate[faceIndex]))
-  var estimatePosition2 = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[faceIndex + 1]), vulcanoGeometry.attributes.position.getY(_estimate[faceIndex + 1]), vulcanoGeometry.attributes.position.getZ(_estimate[faceIndex + 1]))
-  var estimatePosition3 = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[faceIndex + 2]), vulcanoGeometry.attributes.position.getY(_estimate[faceIndex + 2]), vulcanoGeometry.attributes.position.getZ(_estimate[faceIndex + 2]))
-
-  console.log("New estimate position: ", estimatePosition, _estimate[faceIndex])
-
-  var material = new THREE.MeshBasicMaterial({color: "yellow", side: THREE.DoubleSide})
-  var sphere = new Mesh(geometry, material)
-  var sphere2 = new Mesh(geometry, material)
-  var sphere3 = new Mesh(geometry, material)
-  sphere.position.set(estimatePosition.x, estimatePosition.y, estimatePosition.z)
-  sphere2.position.set(estimatePosition2.x, estimatePosition2.y, estimatePosition2.z)
-  sphere3.position.set(estimatePosition3.x, estimatePosition3.y, estimatePosition3.z)
-  vulcanoMesh.add(sphere)
-  vulcanoMesh.add(sphere2)
-  vulcanoMesh.add(sphere3)
 
   const indexAttribute = vulcanoGeometry.getIndex();
   const indices = indexAttribute.array;
-  const vertIds = _estimate.slice(faceIndex, faceIndex+3)
-  console.log(_estimate, faceIndex)
-  console.log(vertIds)
-  const neighbors = vertIds; // note: self will be added to list
+  const vertIds = oldEstimate
+  // Old estimated face positions
+  var oldEstimatePositionA = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(oldEstimate[0]), vulcanoGeometry.attributes.position.getY(oldEstimate[0]), vulcanoGeometry.attributes.position.getZ(oldEstimate[0]))
+  var oldEstimatePositionB = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(oldEstimate[1]), vulcanoGeometry.attributes.position.getY(oldEstimate[1]), vulcanoGeometry.attributes.position.getZ(oldEstimate[1]))
+  var oldEstimatePositionC = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(oldEstimate[2]), vulcanoGeometry.attributes.position.getY(oldEstimate[2]), vulcanoGeometry.attributes.position.getZ(oldEstimate[2]))
+  console.log("Old estimate positions:", oldEstimatePositionA, oldEstimatePositionB, oldEstimatePositionC, oldEstimate);
+  // Old estimated face centroid position
+  var oldEstimateCentroidPosition = computeFaceCentroidPosition(oldEstimatePositionA, oldEstimatePositionB, oldEstimatePositionC)
+
+  // Finding neighbors around old estimate face
+  const neighbors = []
   for (let i = 0; i < indices.length; i += 3) {
     for (let j = 0; j < 3; ++j) {
       const p0Ndx = indices[i + j];
@@ -871,9 +794,66 @@ function getGradientDescent(_estimate){
       }
     }
   }
-  console.log("New neighbors: " + neighbors)
-  setTimeout(function() {
-    getGradientDescent(neighbors)
-  }, Math.abs(speed) * 100)
+  // Remove current vertIds from neighbor
+  for (let i = 0; i < neighbors.length; i += 3)
+  {
+    if (vertIds[0] == neighbors[i] && 
+      vertIds[1] == neighbors[i + 1] && 
+      vertIds[2] == neighbors[i + 2])
+    {
+      neighbors.splice(i, 3)
+    }
+  }
+  console.log("New neighbors found nearby estimate: ", vertIds, "Neighbors: ", neighbors)
+
+  // Debug neighbors
+  var geometry = new THREE.SphereGeometry( 0.01, 8, 8)
+  var material = new THREE.MeshBasicMaterial({color: "red", side: THREE.DoubleSide})
+
+  // Calculate gradient for every axis and update model weights
+  for(var i = 0; i < neighbors.length; i += 3)
+  {
+    var positionA = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(neighbors[i + 0]), vulcanoGeometry.attributes.position.getY(neighbors[i + 0]), vulcanoGeometry.attributes.position.getZ(neighbors[i + 0]))
+    var positionB = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(neighbors[i + 1]), vulcanoGeometry.attributes.position.getY(neighbors[i + 1]), vulcanoGeometry.attributes.position.getZ(neighbors[i + 1]))
+    var positionC = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(neighbors[i + 2]), vulcanoGeometry.attributes.position.getY(neighbors[i + 2]), vulcanoGeometry.attributes.position.getZ(neighbors[i + 2]))
+    var centroidPosition = computeFaceCentroidPosition(positionA, positionB, positionC)
+    // Debug sphere
+    var sphere = new Mesh(geometry, material)
+    sphere.position.set(centroidPosition.x, centroidPosition.y, centroidPosition.z)
+    vulcanoMesh.add(sphere)
+
+    if(centroidPosition.z >= oldEstimateCentroidPosition.z){
+      // Found lower valued centroid position in neighbors
+      faceIndex = i
+    }
+  }
+
+  // Define new estimate position
+  if(centroidPosition.z > oldEstimateCentroidPosition.z){
+    _estimate = neighbors.slice(faceIndex, faceIndex + 3)
+    var estimatePositionA = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[0]), vulcanoGeometry.attributes.position.getY(_estimate[0]), vulcanoGeometry.attributes.position.getZ(_estimate[0]))
+    var estimatePositionB = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[0 + 1]), vulcanoGeometry.attributes.position.getY(_estimate[0 + 1]), vulcanoGeometry.attributes.position.getZ(_estimate[0 + 1]))
+    var estimatePositionC = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[0 + 2]), vulcanoGeometry.attributes.position.getY(_estimate[0 + 2]), vulcanoGeometry.attributes.position.getZ(_estimate[0 + 2]))
+    var estimateCentroidPosition = computeFaceCentroidPosition(estimatePositionA, estimatePositionB, estimatePositionC)
+    // console.log("New estimate centroid position: ", estimateCentroidPosition, _estimate)
   
+    var material = new THREE.MeshBasicMaterial({color: "yellow", side: THREE.DoubleSide})
+    var sphere = new Mesh(geometry, material)
+    sphere.position.set(estimateCentroidPosition.x, estimateCentroidPosition.y, estimateCentroidPosition.z)
+    vulcanoMesh.add(sphere)
+    
+    setTimeout(function() {
+      getGradientDescent(_estimate)
+    }, Math.abs(1) * 100)
+  }
+
+}
+
+function computeFaceCentroidPosition(facePosA, facePosB, facePosC)
+{
+  var centroidPosition = new THREE.Vector3()
+  centroidPosition.x = (facePosA.x + facePosB.x + facePosC.x) / 3
+  centroidPosition.y = (facePosA.y + facePosB.y + facePosC.y) / 3
+  centroidPosition.z = (facePosA.z + facePosB.z + facePosC.z) / 3
+  return centroidPosition
 }
