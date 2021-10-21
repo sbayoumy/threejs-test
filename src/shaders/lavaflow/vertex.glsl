@@ -175,19 +175,19 @@ float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x);
 return 2.2 * n_xyz;
 }
 
-// Start vertex shader
+// Start vertex shader ==========================================================
 
 varying vec2 vUv;
 varying float high_noise;
 uniform float time;
 
 float turbulence(vec3 p){
-    float w = 10.0;
+    float w = 1.0;
     float t = -0.1;
 
-    for(float f = 1.0; f <= 10.0; f++){
+    for(float f = 1.0; f <= 3.0; f++){
         float power = pow(2.0, f);
-        t += abs(pnoise(vec3(power * p), vec3(10.0, 10.0, 10.0)) / power);
+        t += abs(pnoise(vec3(power * p), vec3(1.0, 1.0, 1.0)) / power);
     }
     return t;
 }
@@ -196,11 +196,11 @@ void main() {
     vUv = uv;
 
     // Get turbulent noise using normal (high frequency)
-    high_noise = 12.0 * -0.07 * turbulence(1.2 * normal + time);
+    high_noise = -0.2 * 0.1 * turbulence(1.2 * normal + time);
     // Get noise using vertex position (low frequency)
-    float low_noise = 1.5 * pnoise(0.19 * position, vec3(100.0));
+    float low_noise = 0.2 * pnoise(0.15 * position, vec3(1.0));
     // Combine noises
-    float displacement = -12.0 * high_noise + low_noise;
+    float displacement = 0.2 * high_noise + low_noise;
 
     // Transform vertex position along the normal
     vec3 newPosition = position + normal * displacement;
