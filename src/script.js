@@ -12,7 +12,7 @@ import vulcanoVertexShader from './shaders/vulcano/vertex.glsl'
 import vulcanoFragmentShader from './shaders/vulcano/fragment.glsl'
 import lavaVertexShader from './shaders/lavaflow/vertex.glsl'
 import lavaFragmentShader from './shaders/lavaflow/fragment.glsl'
-import { MathUtils } from 'three'
+import { MathUtils, SphereBufferGeometry } from 'three'
 
 // Canvas
 let canvas = document.querySelector('canvas.webgl')
@@ -300,7 +300,7 @@ renderer.xr.addEventListener('sessionend', () => {
 function onSelectStart(){
   if(reticle.visible){
     this.userData.isSelecting = true
-    this.userData.skipFrames = 2
+    this.userData.skipFrames = 10
     if(isVulcanoBaseFinished === true && isVulcanoFinished === false){
       let vulcanoHeightContour = new TubePainter()
       vulcanoHeightContour.setSize(0.4)
@@ -747,29 +747,39 @@ function applyVulcanoChanges()
 {
   /**
    * TODO: Add Z noise based on vulcanoHeightContours painter bbox size
-   * Maybe use center position of bbox for UV coordinate. And bbox size for radius
+   * Maybe use center position of bbox for UV coordinate. And bsphere radius for radius
    * Create vulcano height values for every tube painter in vulcanoHeightContours
+   * Apply center point to compute uv map coordinate, mby cast a ray towards vulcano mesh?
    */
+  
+  // let vulcanoBase = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 4.4)
+  // let vulcanoCrater = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 3.7 + -vulcanoCraterSize)
+  let vulcanoBase = 0
+  let vulcanoCrater = 0
+
+  for(let i = 0; i < vulcanoHeightContours.length; i++)
+  {
+    let center = getCenterPoint(vulcanoHeightContours[i].mesh)
+    center = vulcanoMesh.worldToLocal(center)
+    // Debug position
+    var material = new THREE.MeshBasicMaterial({color: "yellow", side: THREE.DoubleSide})
+    var sphere = new THREE.Mesh(new SphereBufferGeometry(0.02), material)
+    scene.add(sphere)
+    sphere.position.set(center.x, center.y, center.z)
+
+    let boundingSphereRadius = vulcanoHeightContours[i].mesh.geometry.boundingSphere.radius
+    
+    console.log(center, boundingSphereRadius)
+  }
   
   // Apply Z noise
   for(let i = 0; i < vulcanoGeometry.attributes.position.count; i++){
     let uv = new THREE.Vector2(vulcanoGeometry.attributes.uv.getX(i), vulcanoGeometry.attributes.uv.getY(i))
     let position = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(i), vulcanoGeometry.attributes.position.getY(i), vulcanoGeometry.attributes.position.getZ(i))
+    
+    // vulcanoBase += Math.max(0, 1-uv.distanceTo(new THREE.Vector2(center)) * 2.4)
+    // vulcanoCrater += Math.max(0, 1-uv.distanceTo(new THREE.Vector2(center)) * 3.7 + -vulcanoCraterSize * boundingSphereRadius)
 
-    // let vulcanoBase = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 4.4)
-    // let vulcanoCrater = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 3.7 + -vulcanoCraterSize)
-    let vulcanoBase = 0
-    let vulcanoCrater = 0
-
-    for(let i = 0; i < vulcanoHeightContours.length; i++)
-    {
-      let center = getCenterPoint(vulcanoHeightContours[i].mesh)
-      center = vulcanoMesh.worldToLocal(center)
-      let boundingSphereRadius = vulcanoHeightContours[i].mesh.geometry.boundingSphere.radius
-      console.log(center, boundingSphereRadius);
-      vulcanoBase += Math.max(0, 1-uv.distanceTo(new THREE.Vector2(center)) * 2.4)
-      vulcanoCrater += Math.max(0, 1-uv.distanceTo(new THREE.Vector2(center)) * 3.7 + -vulcanoCraterSize * boundingSphereRadius)
-    }
 
     let vulcanoFinal = MathUtils.lerp(vulcanoBase, -vulcanoCrater * vulcanoCraterDepth, 0.5)
     let elevationZ = getElevation(position, 3)
