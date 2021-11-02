@@ -303,8 +303,8 @@ function onSelectStart(){
     this.userData.skipFrames = 2
     if(isVulcanoBaseFinished === true && isVulcanoFinished === false){
       let vulcanoHeightContour = new TubePainter()
-      vulcanoHeightContour.setSize(0.5)
-      vulcanoMesh.add(vulcanoHeightContour.mesh)
+      vulcanoHeightContour.setSize(0.4)
+      scene.add(vulcanoHeightContour.mesh)
       vulcanoHeightContours.push(vulcanoHeightContour)
     }
   }
@@ -313,8 +313,9 @@ function onSelectEnd(){
   if(reticle.visible){ // Only draw when reticle is visible
     this.userData.isSelecting = false
     if(isVulcanoBaseFinished === true && isVulcanoFinished === false){
-      vulcanoHeightContours.at(-1).mesh.geometry.computeBoundingBox()
-      vulcanoHeightContours.at(-1).mesh.geometry.computeBoundingSphere()
+      let geometry = vulcanoHeightContours.at(-1).mesh.geometry
+      geometry.computeBoundingBox()
+      geometry.computeBoundingSphere()
       applyVulcanoChanges()
     }
     if(isVulcanoBaseFinished === false){ // When the vulcano hasn't been generated yet
@@ -340,24 +341,28 @@ const handleController = (controller) =>{
       if(userData.skipFrames >= 0){
           userData.skipFrames --
 
-          painter.moveTo(cursor)
-          shape.moveTo(cursor.x, cursor.z)
+          if(isVulcanoBaseFinished === false){
+            painter.moveTo(cursor)
+            shape.moveTo(cursor.x, cursor.z)
+          }
 
           if(isVulcanoFinished === false && isVulcanoBaseFinished === true){
             // Move position of latest vulcano height contour lines
-            vulcanoHeightContours.at(-1).moveTo(cursor.x, cursor.y)
+            vulcanoHeightContours.at(-1).moveTo(cursor)
           }
       }
       else{
+        if(isVulcanoBaseFinished === false){
           painter.lineTo(cursor)
           shape.lineTo(cursor.x, cursor.z)
           painter.update()
+        }
 
-          if(isVulcanoFinished === false && isVulcanoBaseFinished === true){
-            // Move position of latest vulcano height contour lines
-            vulcanoHeightContours.at(-1).lineTo(cursor.x, cursor.y)
-            vulcanoHeightContours.at(-1).update(cursor.x, cursor.y)
-          }
+        if(isVulcanoFinished === false && isVulcanoBaseFinished === true){
+          // Move position of latest vulcano height contour lines
+          vulcanoHeightContours.at(-1).lineTo(cursor)
+          vulcanoHeightContours.at(-1).update(cursor)
+        }
       }
   }
 }
@@ -759,7 +764,9 @@ function applyVulcanoChanges()
     for(let i = 0; i < vulcanoHeightContours.length; i++)
     {
       let center = getCenterPoint(vulcanoHeightContours[i].mesh)
-      let boundingSphereRadius = vulcanoHeightContours[i].mesh.geometry.boundingSphere / 2
+      center = vulcanoMesh.worldToLocal(center)
+      let boundingSphereRadius = vulcanoHeightContours[i].mesh.geometry.boundingSphere.radius
+      console.log(center, boundingSphereRadius);
       vulcanoBase += Math.max(0, 1-uv.distanceTo(new THREE.Vector2(center)) * 2.4)
       vulcanoCrater += Math.max(0, 1-uv.distanceTo(new THREE.Vector2(center)) * 3.7 + -vulcanoCraterSize * boundingSphereRadius)
     }
@@ -903,7 +910,7 @@ function getCenterPoint(mesh) {
   var geometry = mesh.geometry
   var center = new THREE.Vector3()
   geometry.boundingBox.getCenter( center )
-  // mesh.localToWorld( center )
+  mesh.localToWorld( center )
 
   return center
 }
