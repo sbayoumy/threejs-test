@@ -52,16 +52,16 @@ var noise = new noisejs.Noise(Math.random());
 // Shape
 const shape = new THREE.Shape()
 // Complex
-shape.lineTo(0, 0.8)
-shape.lineTo(0.2, 1)
-shape.lineTo(0.6, 1.2)
-shape.lineTo(0.9, 1.0)
-shape.lineTo(1.2, 1.0)
-shape.lineTo(1.5, 0.8)
-shape.lineTo(1.8, 0.4)
-shape.lineTo(1.8, 0)
-shape.lineTo(1.2, -0.5)
-shape.lineTo(0.2, -0.5)
+// shape.lineTo(0, 0.8)
+// shape.lineTo(0.2, 1)
+// shape.lineTo(0.6, 1.2)
+// shape.lineTo(0.9, 1.0)
+// shape.lineTo(1.2, 1.0)
+// shape.lineTo(1.5, 0.8)
+// shape.lineTo(1.8, 0.4)
+// shape.lineTo(1.8, 0)
+// shape.lineTo(1.2, -0.5)
+// shape.lineTo(0.2, -0.5)
 
 const extrudeSettings = {
 	curveSegments: 0,
@@ -78,6 +78,8 @@ var vulcanoCraterDepth = 1.0
 var isVulcanoFinished = false
 var isVulcanoBaseFinished = false
 var vulcanoHeightContours = []
+const indexAttribute = null
+const indices = null
 
 // Debug
 let gui = new dat.GUI()
@@ -181,16 +183,12 @@ plane.position.z = 0
 plane.geometry.needsUpdate = true
 
 // Generate first then mesh
-generateVulcano()
+// generateVulcano()
 // applyVulcanoChanges()
 var vulcanoMesh = new THREE.Mesh(
   vulcanoGeometry, // Re-use existing geometry
   vulcanoMaterial
 )
-vulcanoMesh.rotateX(Math.PI/2)
-vulcanoMesh.position.setY(cursor.y)
-scene.add(vulcanoMesh)
-vulcanoMesh.geometry.attributes.uv.needsUpdate = true
 
 const icosahedron = new THREE.Mesh(icosahedronGeometry, icosahedronMaterial)
 icosahedron.position.z = -50
@@ -299,24 +297,32 @@ renderer.xr.addEventListener('sessionend', () => {
 })
 
 // Controls
-function onSelectStart(event){
-  console.log(event)
+function onSelectStart(){
   if(reticle.visible){
     this.userData.isSelecting = true
     this.userData.skipFrames = 2
-    if(isVulcanoBaseFinished){
-      vulcanoHeightContours.add(new TubePainter())
+    if(isVulcanoBaseFinished === true && isVulcanoFinished === false){
+      let vulcanoHeightContour = new TubePainter()
+      vulcanoHeightContour.setSize(0.5)
+      vulcanoMesh.add(vulcanoHeightContour.mesh)
+      vulcanoHeightContours.push(vulcanoHeightContour)
     }
   }
 }
 function onSelectEnd(){
   if(reticle.visible){ // Only draw when reticle is visible
     this.userData.isSelecting = false
-    if(vulcanoGeometry.index != null && isVulcanoBaseFinished === false){ // When the vulcano hasn't been generated yet
+    if(isVulcanoBaseFinished === true && isVulcanoFinished === false){
+      vulcanoHeightContours.at(-1).mesh.geometry.computeBoundingBox()
+      vulcanoHeightContours.at(-1).mesh.geometry.computeBoundingSphere()
+      applyVulcanoChanges()
+    }
+    if(isVulcanoBaseFinished === false){ // When the vulcano hasn't been generated yet
       generateVulcano()
+      applyVulcanoChanges()
       isVulcanoBaseFinished = true
     }
-
+    
   }
 }
 
@@ -337,7 +343,7 @@ const handleController = (controller) =>{
           painter.moveTo(cursor)
           shape.moveTo(cursor.x, cursor.z)
 
-          if(!isVulcanoFinished){
+          if(isVulcanoFinished === false && isVulcanoBaseFinished === true){
             // Move position of latest vulcano height contour lines
             vulcanoHeightContours.at(-1).moveTo(cursor.x, cursor.y)
           }
@@ -347,7 +353,7 @@ const handleController = (controller) =>{
           shape.lineTo(cursor.x, cursor.z)
           painter.update()
 
-          if(!isVulcanoFinished){
+          if(isVulcanoFinished === false && isVulcanoBaseFinished === true){
             // Move position of latest vulcano height contour lines
             vulcanoHeightContours.at(-1).lineTo(cursor.x, cursor.y)
             vulcanoHeightContours.at(-1).update(cursor.x, cursor.y)
@@ -458,13 +464,14 @@ function generateVulcano()
   // scene.add(cube);
   var center = new THREE.Vector3()
   vulcanoGeometry.boundingBox.getCenter(center)
-  var bbox = vulcanoGeometry.boundingBox
-  // let offset = new THREE.Vector2(0 - bbox.min.x, 0 - bbox.min.y);
-  // let range = new THREE.Vector2(bbox.max.x - bbox.min.x, bbox.max.y - bbox.min.y);
   vulcanoGeometry.center()
   applyBoxUV(vulcanoGeometry, new THREE.Matrix4().invert(cube.matrix), uvMapSize)
   vulcanoGeometry.translate(center.x, center.y, center.z)
 
+  vulcanoMesh.rotateX(Math.PI/2)
+  vulcanoMesh.position.setY(cursor.y)
+  scene.add(vulcanoMesh)
+  vulcanoMesh.geometry.attributes.uv.needsUpdate = true
 
   // Index to position data
   // console.log(vulcanoGeometry)
@@ -716,8 +723,8 @@ function onMouseDown( event ) {
       // Neighbors
       var intersection = intersects[0];
       var faceIndex = intersection.faceIndex;
-      var indexAttribute = vulcanoGeometry.getIndex();
-      var indices = indexAttribute.array;
+      indexAttribute = vulcanoGeometry.getIndex();
+      indices = indexAttribute.array;
       var vertIds = indices.slice(faceIndex * 3, faceIndex * 3 + 3);
   
       getGradientDescent(vertIds)
@@ -744,16 +751,17 @@ function applyVulcanoChanges()
     let uv = new THREE.Vector2(vulcanoGeometry.attributes.uv.getX(i), vulcanoGeometry.attributes.uv.getY(i))
     let position = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(i), vulcanoGeometry.attributes.position.getY(i), vulcanoGeometry.attributes.position.getZ(i))
 
-    let vulcanoBase = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 2.4)
-    let vulcanoCrater = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 3.7 + -vulcanoCraterSize)
-    
-    for(let vulcanoHeightContour in vulcanoHeightContours)
+    // let vulcanoBase = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 4.4)
+    // let vulcanoCrater = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 3.7 + -vulcanoCraterSize)
+    let vulcanoBase = 0
+    let vulcanoCrater = 0
+
+    for(let i = 0; i < vulcanoHeightContours.length; i++)
     {
-      let center = getCenterPoint(vulcanoHeightContour.mesh)
-      vulcanoHeightContour.mesh.geometry.computeBoundingSphere()
-      let boundingSphereRadius = vulcanoHeightContour.mesh.geometry.boundingSphere / 2
-      vulcanoBase += Math.max(0, 1-uv.distanceTo(new THREE.Vector2(center)) * 2.4 * boundingSphereRadius)
-      vulcanoCrater += Math.max(0, 1-uv.distanceTo(new THREE.Vector2(center)) * 3.7 * boundingSphereRadius + -vulcanoCraterSize)
+      let center = getCenterPoint(vulcanoHeightContours[i].mesh)
+      let boundingSphereRadius = vulcanoHeightContours[i].mesh.geometry.boundingSphere / 2
+      vulcanoBase += Math.max(0, 1-uv.distanceTo(new THREE.Vector2(center)) * 2.4)
+      vulcanoCrater += Math.max(0, 1-uv.distanceTo(new THREE.Vector2(center)) * 3.7 + -vulcanoCraterSize * boundingSphereRadius)
     }
 
     let vulcanoFinal = MathUtils.lerp(vulcanoBase, -vulcanoCrater * vulcanoCraterDepth, 0.5)
@@ -776,8 +784,7 @@ function getElevation(_position, _frequency){
     return elevation;
 }
 
-const indexAttribute = vulcanoGeometry.getIndex()
-const indices = indexAttribute.array
+
 function getGradientDescent(_estimate){
   var oldEstimate = Object.assign({}, _estimate)
   var faceIndex = 0
@@ -895,9 +902,8 @@ function drawLavaFlow(path)
 function getCenterPoint(mesh) {
   var geometry = mesh.geometry
   var center = new THREE.Vector3()
-  geometry.computeBoundingBox()
   geometry.boundingBox.getCenter( center )
-  mesh.localToWorld( center )
+  // mesh.localToWorld( center )
 
   return center
 }
