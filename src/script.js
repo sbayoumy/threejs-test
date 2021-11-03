@@ -12,7 +12,7 @@ import vulcanoVertexShader from './shaders/vulcano/vertex.glsl'
 import vulcanoFragmentShader from './shaders/vulcano/fragment.glsl'
 import lavaVertexShader from './shaders/lavaflow/vertex.glsl'
 import lavaFragmentShader from './shaders/lavaflow/fragment.glsl'
-import { MathUtils, SphereBufferGeometry } from 'three'
+import { MathUtils, SphereBufferGeometry, Vector3 } from 'three'
 
 // Canvas
 let canvas = document.querySelector('canvas.webgl')
@@ -203,8 +203,8 @@ rayCastHelper.name = "raycaster"
 // scene.add(rayCastHelper)
 
 // Points
-const points = new THREE.Points(vulcanoGeometry, pointsMaterial)
-vulcanoMesh.add(points)
+// const points = new THREE.Points(vulcanoGeometry, pointsMaterial)
+// vulcanoMesh.add(points)
 
 // const vertexNormalsHelper = new VertexNormalsHelper(vulcanoMesh)
 // scene.add(vertexNormalsHelper)
@@ -320,7 +320,7 @@ function onSelectEnd(){
     }
     if(isVulcanoBaseFinished === false){ // When the vulcano hasn't been generated yet
       generateVulcano()
-      applyVulcanoChanges()
+      // applyVulcanoChanges()
       isVulcanoBaseFinished = true
     }
     
@@ -754,32 +754,45 @@ function applyVulcanoChanges()
   
   // let vulcanoBase = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 4.4)
   // let vulcanoCrater = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 3.7 + -vulcanoCraterSize)
-  let vulcanoBase = 0
-  let vulcanoCrater = 0
+  let uvCenters = []
+  let boundingSphereRadius = []
 
   for(let i = 0; i < vulcanoHeightContours.length; i++)
   {
-    let center = getCenterPoint(vulcanoHeightContours[i].mesh)
-    center = vulcanoMesh.worldToLocal(center)
+    let centerPos = getCenterPoint(vulcanoHeightContours[i].mesh)
+    // let bboxSize = new THREE.Vector3()
+    // vulcanoHeightContours[i].mesh.geometry.boundingBox.getSize(bboxSize)
+    // console.log(bboxSize)
+    
+  
     // Debug position
     var material = new THREE.MeshBasicMaterial({color: "yellow", side: THREE.DoubleSide})
     var sphere = new THREE.Mesh(new SphereBufferGeometry(0.02), material)
-    scene.add(sphere)
-    sphere.position.set(center.x, center.y, center.z)
-
-    let boundingSphereRadius = vulcanoHeightContours[i].mesh.geometry.boundingSphere.radius
-    
-    console.log(center, boundingSphereRadius)
+    vulcanoMesh.add(sphere)
+    sphere.position.set((centerPos.x * 2) - (centerPos.x / 4), (centerPos.z * 2) - (centerPos.z / 4), -0.1)
+    let dir = new THREE.Vector3(0, -1, 0).normalize()
+    rayCaster.set(sphere.position, dir)
+    let intersect = rayCaster.intersectObject(vulcanoMesh)
+    if(intersect.length > 0){
+      uvCenters.push(intersect[0].uv)
+      console.log(uvCenters)
+      boundingSphereRadius.push(vulcanoHeightContours[i].mesh.geometry.boundingSphere.radius)
+    }
   }
+  console.log(uvCenters)
   
   // Apply Z noise
   for(let i = 0; i < vulcanoGeometry.attributes.position.count; i++){
     let uv = new THREE.Vector2(vulcanoGeometry.attributes.uv.getX(i), vulcanoGeometry.attributes.uv.getY(i))
     let position = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(i), vulcanoGeometry.attributes.position.getY(i), vulcanoGeometry.attributes.position.getZ(i))
-    
-    // vulcanoBase += Math.max(0, 1-uv.distanceTo(new THREE.Vector2(center)) * 2.4)
-    // vulcanoCrater += Math.max(0, 1-uv.distanceTo(new THREE.Vector2(center)) * 3.7 + -vulcanoCraterSize * boundingSphereRadius)
+    let vulcanoBase = 0
+    let vulcanoCrater = 0
 
+    for(let j = 0; i < uvCenters.length; i++)
+    {
+      vulcanoBase += Math.max(0, 1-uv.distanceTo(new THREE.Vector2(uvCenters[j])) * 2.4)
+      vulcanoCrater += Math.max(0, 1-uv.distanceTo(new THREE.Vector2(uvCenters[j])) * 3.7 + -vulcanoCraterSize)
+    }
 
     let vulcanoFinal = MathUtils.lerp(vulcanoBase, -vulcanoCrater * vulcanoCraterDepth, 0.5)
     let elevationZ = getElevation(position, 3)
@@ -920,7 +933,7 @@ function getCenterPoint(mesh) {
   var geometry = mesh.geometry
   var center = new THREE.Vector3()
   geometry.boundingBox.getCenter( center )
-  mesh.localToWorld( center )
+  // mesh.localToWorld( center )
 
   return center
 }
