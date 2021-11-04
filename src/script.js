@@ -85,8 +85,8 @@ var vulcanoCraterDepth = 1.0
 var isVulcanoFinished = false
 var isVulcanoBaseFinished = false
 var vulcanoHeightContours = []
-const indexAttribute = null
-const indices = null
+var indexAttribute = null
+var indices = null
 
 // Debug
 let gui = new dat.GUI()
@@ -797,6 +797,7 @@ function applyVulcanoChanges()
   }
   // vulcanoMesh.rotation.x = -Math.PI / 4
   const controls = new OrbitControls(camera, canvas)
+  isVulcanoFinished = true
   vulcanoGeometry.computeBoundingBox()
   vulcanoGeometry.attributes.uv.needsUpdate = true
   vulcanoGeometry.attributes.position.needsUpdate = true
