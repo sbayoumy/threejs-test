@@ -87,6 +87,8 @@ var isVulcanoBaseFinished = false
 var vulcanoHeightContours = []
 var indexAttribute = null
 var indices = null
+var uvCenters = []
+var boundingSphereRadius = []
 
 // Debug
 let gui = new dat.GUI()
@@ -105,7 +107,7 @@ gui.add(debugObject, "vulcanoHeight").min(0.1).max(3).step(0.001).name('Vulcano 
   vulcanoHeight = debugObject.vulcanoHeight
   applyVulcanoChanges()
 })
-gui.add(debugObject, "vulcanoDetails").min(0).max(5).step(0.001).name('Vulcano Details').onFinishChange(() =>{
+gui.add(debugObject, "vulcanoDetails").min(0).max(10).step(0.001).name('Vulcano Details').onFinishChange(() =>{
   vulcanoDetails = debugObject.vulcanoDetails
   applyVulcanoChanges()
 })
@@ -150,7 +152,7 @@ const icosahedronMaterial = new THREE.ShaderMaterial({
 })
 const reticleMaterial = new THREE.MeshBasicMaterial()
 const contourMaterial = new THREE.MeshBasicMaterial({color: 0xffffff, wireframe: true})
-const planeMaterial = new THREE.MeshBasicMaterial({wireframe: true})
+const planeMaterial = new THREE.MeshBasicMaterial({transparent: true, opacity: 0.0})
 const pointsMaterial = new THREE.PointsMaterial({color: 0x99ccff, size: 0.02})
 const vulcanoMaterial = new THREE.ShaderMaterial({
     side: THREE.DoubleSide,
@@ -249,7 +251,9 @@ scene.add(camera)
 camera.position.z = 1
 
 // Controls
-// const controls = new OrbitControls(camera, canvas)
+const controls = new OrbitControls(camera, canvas)
+controls.enableDamping = true
+controls.enabled = false
 
 /**
  * Renderer
@@ -319,6 +323,25 @@ function onSelectEnd(){
       let geometry = vulcanoHeightContours.at(-1).mesh.geometry
       geometry.computeBoundingBox()
       geometry.computeBoundingSphere()
+      let centerPos = getCenterPoint(vulcanoHeightContours.at(-1).mesh)
+      let bboxSize = new THREE.Vector3()
+      vulcanoHeightContours.at(-1).mesh.geometry.boundingBox.getSize(bboxSize)
+  
+      // Debug position
+      var material = new THREE.MeshBasicMaterial({color: "yellow", side: THREE.DoubleSide})
+      var sphere = new THREE.Mesh(new SphereBufferGeometry(0.02), material)
+      scene.add(sphere)
+      // sphere.position.set((centerPos.x * 2) - (centerPos.x / 2), (centerPos.y * 2) - (centerPos.y / 2), 0.1)
+      sphere.position.set(centerPos.x * 2, centerPos.y * 2, 1)
+  
+      let dir = new THREE.Vector3(0, 0, -1).normalize()
+      rayCaster.set(sphere.position, dir)
+      let intersect = rayCaster.intersectObject(vulcanoMesh, false)
+      if(intersect.length > 0){
+        uvCenters.push(intersect[0].uv)
+        boundingSphereRadius.push(vulcanoHeightContours.at(-1).mesh.geometry.boundingSphere.radius)
+      }
+
       // applyVulcanoChanges()
     }
     if(isVulcanoBaseFinished === false){ // When the vulcano hasn't been generated yet
@@ -389,6 +412,7 @@ const tick = () =>
 
     // Update controls
     handleController(controller)
+    controls.update()
 
     stats.end()
 }
@@ -717,12 +741,13 @@ function onMouseDown( event ) {
   // See if the ray from the camera into the world hits one of our meshes
   var objects = [];
   objects.push(vulcanoMesh)
-  var intersects = rayCaster.intersectObjects( objects);
+  var intersects = rayCaster.intersectObjects(objects, false);
 
   // Toggle rotation bool for meshes that we clicked
   if ( intersects.length > 0) {
     clickedFaces.push(intersects[0].face)
 
+    console.log("yeee boi")
     // Comptute gradient descent when vulcano is ready
     if(isVulcanoFinished) {
       // Neighbors
@@ -755,48 +780,30 @@ function applyVulcanoChanges()
 { 
   // let vulcanoBase = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 4.4)
   // let vulcanoCrater = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 3.7 + -vulcanoCraterSize)
-  let uvCenters = []
-  let boundingSphereRadius = []
-
-  for(let i = 0; i < vulcanoHeightContours.length; i++)
-  {
-    let centerPos = getCenterPoint(vulcanoHeightContours[i].mesh)
-    let bboxSize = new THREE.Vector3()
-    vulcanoHeightContours[i].mesh.geometry.boundingBox.getSize(bboxSize)
-
-    // Debug position
-    var material = new THREE.MeshBasicMaterial({color: "yellow", side: THREE.DoubleSide})
-    var sphere = new THREE.Mesh(new SphereBufferGeometry(0.02), material)
-    scene.add(sphere)
-    // sphere.position.set((centerPos.x * 2) - (centerPos.x / 2), (centerPos.y * 2) - (centerPos.y / 2), 0.1)
-    sphere.position.set(centerPos.x * 2, centerPos.y * 2, 1)
-
-    let dir = new THREE.Vector3(0, 0, -1).normalize()
-    rayCaster.set(sphere.position, dir)
-    let intersect = rayCaster.intersectObject(vulcanoMesh)
-    if(intersect.length > 0){
-      uvCenters.push(intersect[0].uv)
-      boundingSphereRadius.push(vulcanoHeightContours[i].mesh.geometry.boundingSphere.radius)
-    }
-  }
   
   // Apply Z noise
-  for(let j = 0; j < uvCenters.length; j++)
-  {
-    for(let i = 0; i < vulcanoGeometry.attributes.position.count; i++){
-      let uv = new THREE.Vector2(vulcanoGeometry.attributes.uv.getX(i), vulcanoGeometry.attributes.uv.getY(i))
-      let position = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(i), vulcanoGeometry.attributes.position.getY(i), vulcanoGeometry.attributes.position.getZ(i))
-      let vulcanoBase = Math.max(0, 1-uv.distanceTo(uvCenters[j]) * 4.4)
-      let vulcanoCrater = Math.max(0, 1-uv.distanceTo(uvCenters[j]) * 3.7 + -vulcanoCraterSize)
+  for(let k = 0; k < vulcanoGeometry.attributes.position.count; k++){
+    let uv = new THREE.Vector2(vulcanoGeometry.attributes.uv.getX(k), vulcanoGeometry.attributes.uv.getY(k))
+    let position = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(k), vulcanoGeometry.attributes.position.getY(k), vulcanoGeometry.attributes.position.getZ(k))
 
-      let vulcanoFinal = MathUtils.lerp(vulcanoBase, -vulcanoCrater * vulcanoCraterDepth, 0.5)
-      let elevationZ = getElevation(position, 3)
-      let z = ((vulcanoFinal * vulcanoHeight) + (elevationZ * vulcanoDetails)) / uvCenters.length
-      vulcanoGeometry.attributes.position.setZ(i, vulcanoGeometry.attributes.position.getZ(i) + z)
+    let vulcanoBase = 0
+    let vulcanoCrater = 0
+    for(let j = 0; j < uvCenters.length; j++)
+    {
+      vulcanoBase += Math.max(0, 1-uv.distanceTo(uvCenters[j]) * 4.4)
+      vulcanoCrater += Math.max(0, 1-uv.distanceTo(uvCenters[j]) * 3.7 + -vulcanoCraterSize)
     }
+    let vulcanoFinal = MathUtils.lerp(vulcanoBase, -vulcanoCrater * vulcanoCraterDepth, 0.5)
+    let elevationZ = getElevation(position, 3)
+    let z = ((vulcanoFinal * vulcanoHeight) + (elevationZ * vulcanoDetails))
+    vulcanoGeometry.attributes.position.setZ(k, z)
+    // vulcanoGeometry.attributes.position.setZ(k, vulcanoGeometry.attributes.position.getZ(k) + z)
   }
+
   // vulcanoMesh.rotation.x = -Math.PI / 4
-  const controls = new OrbitControls(camera, canvas)
+  if(isVulcanoFinished === false){
+    controls.enabled = true
+  }
   isVulcanoFinished = true
   vulcanoGeometry.computeBoundingBox()
   vulcanoGeometry.attributes.uv.needsUpdate = true
