@@ -12,7 +12,7 @@ import vulcanoVertexShader from './shaders/vulcano/vertex.glsl'
 import vulcanoFragmentShader from './shaders/vulcano/fragment.glsl'
 import lavaVertexShader from './shaders/lavaflow/vertex.glsl'
 import lavaFragmentShader from './shaders/lavaflow/fragment.glsl'
-import { MathUtils, SphereBufferGeometry, Vector3 } from 'three'
+import { MathUtils, SphereBufferGeometry } from 'three'
 
 // Canvas
 let canvas = document.querySelector('canvas.webgl')
@@ -20,7 +20,7 @@ let canvas = document.querySelector('canvas.webgl')
 /**
  * Sizes
  */
- const sizes = {
+const sizes = {
   width: window.innerWidth,
   height: window.innerHeight
 }
@@ -248,7 +248,7 @@ window.addEventListener( 'touchmove', onTouchMove );
  */
 // Base camera
 // const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.025, 200)
-const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -2, 40)
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -100, 40)
 scene.add(camera)
 camera.position.z = 1
 
@@ -334,7 +334,7 @@ function onSelectEnd(){
       var sphere = new THREE.Mesh(new SphereBufferGeometry(0.02), material)
       scene.add(sphere)
       // sphere.position.set((centerPos.x * 2) - (centerPos.x / 2), (centerPos.y * 2) - (centerPos.y / 2), 0.1)
-      sphere.position.set(centerPos.x * 2, centerPos.y * 2, 1)
+      sphere.position.set(centerPos.x * 2, centerPos.y * 2, 100)
   
       let dir = new THREE.Vector3(0, 0, -1).normalize()
       rayCaster.set(sphere.position, dir)
@@ -411,6 +411,7 @@ const tick = () =>
     const elapsedTime = clock.getElapsedTime()
 
     // Update objects
+    camera.updateMatrixWorld()
     icosahedron.rotation.y = .5 * elapsedTime
     icosahedronMaterial.uniforms['time'].value = 0.02 * elapsedTime
     vulcanoMaterial.uniforms['uTime'].value = 0.124 * elapsedTime
@@ -740,14 +741,12 @@ function _applyBoxUV(geom, transformMatrix, bbox, bbox_max_size) {
 
 function onMouseDown( event ) {
 
-  pointer.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
-  pointer.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
-  rayCaster.setFromCamera( pointer, camera );
+  pointer.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1
+  pointer.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1
+  rayCaster.setFromCamera( pointer, camera )
 
-  // See if the ray from the camera into the world hits one of our meshes
-  var objects = [];
-  objects.push(vulcanoMesh)
-  var intersects = rayCaster.intersectObjects(objects, false);
+  // See if the ray from the camera into the world hits our mesh
+  var intersects = rayCaster.intersectObject(vulcanoMesh, false)
 
   // Toggle rotation bool for meshes that we clicked
   if ( intersects.length > 0) {
@@ -756,19 +755,19 @@ function onMouseDown( event ) {
     // Comptute gradient descent when vulcano is ready
     if(isVulcanoFinished) {
       // Neighbors
-      var intersection = intersects[0];
-      var faceIndex = intersection.faceIndex;
-      indexAttribute = vulcanoGeometry.getIndex();
-      indices = indexAttribute.array;
-      var vertIds = indices.slice(faceIndex * 3, faceIndex * 3 + 3);
+      var intersection = intersects[0]
+      var faceIndex = intersection.faceIndex
+      indexAttribute = vulcanoGeometry.getIndex()
+      indices = indexAttribute.array
+      var vertIds = indices.slice(faceIndex * 3, faceIndex * 3 + 3)
   
       getGradientDescent(vertIds)
       drawLavaFlow(lavaFlowPath)
     }
 
-    // rayCastHelper.position.set( 0, 0, 0 );
-    // rayCastHelper.lookAt( intersects[ 0 ].face.normal );
-    // rayCastHelper.position.copy( intersects[ 0 ].point );
+    // rayCastHelper.position.set( 0, 0, 0 )
+    // rayCastHelper.lookAt( intersects[ 0 ].face.normal )
+    // rayCastHelper.position.copy( intersects[ 0 ].point )
 
   }
 }
@@ -819,6 +818,7 @@ function applyVulcanoChanges()
   }
   isVulcanoFinished = true
   vulcanoGeometry.computeBoundingBox()
+  vulcanoGeometry.computeBoundingSphere()
   vulcanoGeometry.attributes.uv.needsUpdate = true
   vulcanoGeometry.attributes.position.needsUpdate = true
 }
@@ -827,10 +827,10 @@ function getElevation(_position, _frequency){
   var elevation = 0.0;
     for(var i = 1.0; i < _frequency; i++)
     {
-        var frequency = i;
-        elevation += noise.perlin2(_position.x * frequency * 20.0, _position.y * frequency * 20) / 85.0;
+        var frequency = i
+        elevation += noise.perlin2(_position.x * frequency * 20.0, _position.y * frequency * 20) / 85.0
     }
-    return elevation;
+    return elevation
 }
 
 
@@ -893,14 +893,14 @@ function getGradientDescent(_estimate){
     // sphere.position.set(centroidPosition.x, centroidPosition.y, centroidPosition.z)
     // vulcanoMesh.add(sphere)
 
-    if(centroidPosition.z >= oldEstimateCentroidPosition.z){
+    if(centroidPosition.z <= oldEstimateCentroidPosition.z){
       // Found lower valued centroid position in neighbors
       faceIndex = i
     }
   }
 
   // Define new estimate position
-  if(centroidPosition.z >= oldEstimateCentroidPosition.z){
+  if(centroidPosition.z <= oldEstimateCentroidPosition.z){
     _estimate = neighbors.slice(faceIndex, faceIndex + 3)
     // var estimatePositionA = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[0]), vulcanoGeometry.attributes.position.getY(_estimate[0]), vulcanoGeometry.attributes.position.getZ(_estimate[0]))
     // var estimatePositionB = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[0 + 1]), vulcanoGeometry.attributes.position.getY(_estimate[0 + 1]), vulcanoGeometry.attributes.position.getZ(_estimate[0 + 1]))
