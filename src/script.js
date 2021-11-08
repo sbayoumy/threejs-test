@@ -158,7 +158,7 @@ const vulcanoMaterial = new THREE.ShaderMaterial({
     side: THREE.DoubleSide,
     vertexShader: vulcanoVertexShader,
     fragmentShader: vulcanoFragmentShader,
-    wireframe: false,
+    wireframe: true,
     uniforms: {
       tLava: {
           type: "t",
@@ -463,7 +463,7 @@ function generateVulcano()
   // const contour = new THREE.Mesh(contourGeometry, contourMaterial)
   // scene.add(contour)
 
-  var pointsAndUvs = generatePointsAndUvOnGeo(contourGeometry, 1000)// <-- 0 Is points && 1 is UVs
+  var pointsAndUvs = generatePointsAndUvOnGeo(contourGeometry, 3000)// <-- 0 Is points && 1 is UVs
   var pointsArray = pointsAndUvs[0]
 
   vulcanoGeometry.setFromPoints(pointsArray)
@@ -471,7 +471,7 @@ function generateVulcano()
   // Vulcano
   var indexDelaunay = Delaunator.from(
     pointsArray.map(v => {
-        return [v.y, v.x]
+        return [v.x, v.y]
     })
   )
   // UVs
@@ -877,8 +877,8 @@ function getGradientDescent(_estimate){
   // console.log("New neighbors found nearby estimate: ", vertIds, "Neighbors: ", neighbors)
 
   // Debug neighbors
-  // var geometry = new THREE.SphereGeometry( 0.01, 8, 8)
-  // var material = new THREE.MeshBasicMaterial({color: "red", side: THREE.DoubleSide})
+  var geometry = new THREE.SphereGeometry( 0.01, 8, 8)
+  var material = new THREE.MeshBasicMaterial({color: "red", side: THREE.DoubleSide})
 
   // Calculate gradient for every neighbor faces and update face index
   for(var i = 0; i < neighbors.length; i += 3)
@@ -888,8 +888,8 @@ function getGradientDescent(_estimate){
     var positionC = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(neighbors[i + 2]), vulcanoGeometry.attributes.position.getY(neighbors[i + 2]), vulcanoGeometry.attributes.position.getZ(neighbors[i + 2]))
     var centroidPosition = computeFaceCentroidPosition(positionA, positionB, positionC)
 
-    // Debug neighbors spheres
-    // var sphere = new Mesh(geometry, material)
+    // // Debug neighbors spheres
+    // var sphere = new THREE.Mesh(geometry, material)
     // sphere.position.set(centroidPosition.x, centroidPosition.y, centroidPosition.z)
     // vulcanoMesh.add(sphere)
 
@@ -908,9 +908,9 @@ function getGradientDescent(_estimate){
     // var estimateCentroidPosition = computeFaceCentroidPosition(estimatePositionA, estimatePositionB, estimatePositionC)
     // console.log("New estimate centroid position: ", estimateCentroidPosition, _estimate)
   
-    // Debug estimated centroid position
+    // // Debug estimated centroid position
     // var material = new THREE.MeshBasicMaterial({color: "yellow", side: THREE.DoubleSide})
-    // var sphere = new Mesh(geometry, material)
+    // var sphere = new THREE.Mesh(geometry, material)
     // sphere.position.set(estimateCentroidPosition.x, estimateCentroidPosition.y, estimateCentroidPosition.z)
     // vulcanoMesh.add(sphere)
     
