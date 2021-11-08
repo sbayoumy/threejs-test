@@ -240,6 +240,8 @@ window.addEventListener('resize', () =>
 
 window.addEventListener( 'mousedown', onMouseDown );
 window.addEventListener( 'mousemove', onMouseMove );
+window.addEventListener( 'touchstart', onMouseDown );
+window.addEventListener( 'touchmove', onTouchMove );
 
 /**
  * Camera
@@ -353,7 +355,11 @@ function onSelectEnd(){
   // }
 }
 
-// controller = renderer.xr.getController(0)
+controller = renderer.xr.getController(0)
+// controller.addEventListener('selectstart', onSelectStart)
+// controller.addEventListener('selectend', onSelectEnd)
+window.addEventListener('touchstart', onSelectStart)
+window.addEventListener('touchend', onSelectEnd)
 window.addEventListener('mousedown', onSelectStart)
 window.addEventListener('mouseup', onSelectEnd)
 controller.userData.skipFrames = 0
@@ -747,7 +753,6 @@ function onMouseDown( event ) {
   if ( intersects.length > 0) {
     clickedFaces.push(intersects[0].face)
 
-    console.log("yeee boi")
     // Comptute gradient descent when vulcano is ready
     if(isVulcanoFinished) {
       // Neighbors
@@ -772,6 +777,14 @@ function onMouseMove( event ) {
   if(controller.userData.isSelecting === true){
     pointer.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1
     pointer.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1
+    cursor.set(pointer.x, pointer.y, 0)
+  }
+}
+
+function onTouchMove( event ) {
+  if(controller.userData.isSelecting === true){
+    pointer.x = (event.touches[0].pageX / renderer.domElement.clientWidth)  * 2 - 1
+    pointer.y = - (event.touches[0].pageY / renderer.domElement.clientHeight)  * 2 + 1
     cursor.set(pointer.x, pointer.y, 0)
   }
 }
