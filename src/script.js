@@ -49,7 +49,7 @@ let hitTestSourceRequested = false
 
 // Painter
 let painter = new TubePainter()
-painter.setSize(0.74)
+painter.setSize(1)
 painter.mesh.material.side = THREE.DoubleSide
 scene.add(painter.mesh)
 
@@ -232,7 +232,6 @@ var vulcanoMesh = new THREE.Mesh(
   vulcanoMaterial
 )
 vulcanoMesh.matrixAutoUpdate = false
-vulcanoMesh.matrixWorldNeedsUpdate = true
 
 const icosahedron = new THREE.Mesh(icosahedronGeometry, icosahedronMaterial)
 icosahedron.position.z = -50
@@ -327,8 +326,9 @@ renderer.xr.addEventListener("sessionstart", () => {
   viewerReferenceSpace = renderer.xr.getReferenceSpace()
   camera = persCamera
   applyVulcanoChanges()
+
+  // TODO: Fix rotation when placing vulcano in AR
   vulcanoMesh.geometry.rotateX(-90)
-  // vulcanoMesh.geometry.scale(0.4, 0.4, 1)
 
   if (hitTestSourceRequested === false) {
     //TODO: Setup local reference space
@@ -803,7 +803,7 @@ function onMouseDown(event) {
     clickedFaces.push(intersects[0].face)
 
     // Comptute gradient descent when vulcano is ready
-    if (isVulcanoFinished) {
+    if (isVulcanoFinished && isPlaced) {
       // Neighbor
       var intersection = intersects[0]
       var faceIndex = intersection.faceIndex
@@ -822,7 +822,6 @@ function onMouseDown(event) {
 
   if (hitTestSource != null) {
     isPlaced = true
-    console.log("placed")
   }
 }
 
