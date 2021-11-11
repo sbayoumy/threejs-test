@@ -380,7 +380,7 @@ function onSelectEnd() {
     let dir = new THREE.Vector3(0, 0, -1).normalize()
     rayCaster.set(sphere.position, dir)
     let intersect = rayCaster.intersectObject(vulcanoMesh, false)
-    if (intersect.length > 0) {
+    if (intersect.length > 0 && centerPos.length() > 0) {
       uvCenters.push(intersect[0].uv)
       boundingSphereRadius.push(
         vulcanoHeightContours.at(-1).mesh.geometry.boundingSphere.radius
