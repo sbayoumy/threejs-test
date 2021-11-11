@@ -146,16 +146,14 @@ gui
 
 let rayCastHelper
 const rayCaster = new THREE.Raycaster()
-const pointer = new THREE.Vector2()
+const pointer = new THREE.Vector3()
 const clickedFaces = []
 
 // Geometries
 // const torusGeometry = new THREE.TorusGeometry( .03, .01, 16, 100 )
 const icosahedronGeometry = new THREE.IcosahedronGeometry(20, 20)
 const planeGeometry = new THREE.PlaneBufferGeometry(2, 2)
-const reticleGeometry = new THREE.RingGeometry(0.01, 0.015, 32).rotateX(
-  -Math.PI / 2
-)
+const reticleGeometry = new THREE.RingGeometry(0.01, 0.015, 32).rotateX(-Math.PI / 2)
 const vulcanoGeometry = new THREE.BufferGeometry()
 const geometryHelper = new THREE.ConeGeometry(0.02, 0.07, 6)
 geometryHelper.translate(0, 0, 0)
@@ -280,12 +278,7 @@ window.addEventListener("touchmove", onTouchMove)
  */
 // Base camera
 // const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.025, 200)
-const persCamera = new THREE.PerspectiveCamera(
-  75,
-  sizes.width / sizes.height,
-  0.025,
-  200
-)
+const persCamera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.025, 200)
 const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, -100, 40)
 var camera = orthoCamera
 scene.add(camera)
@@ -411,7 +404,7 @@ window.addEventListener("touchstart", onSelectStart)
 window.addEventListener("touchend", onSelectEnd)
 window.addEventListener("mousedown", onSelectStart)
 window.addEventListener("mouseup", onSelectEnd)
-controller.userData.skipFrames = 0
+controller.userData.skipFrames = 10
 scene.add(controller)
 
 // Handle controller
@@ -423,24 +416,24 @@ const handleController = (controller) => {
       userData.skipFrames--
 
       if (isVulcanoBaseFinished === false) {
-        painter.moveTo(cursor)
-        shape.moveTo(cursor.x, cursor.y)
+        painter.moveTo(pointer)
+        shape.moveTo(pointer.x, pointer.y)
       }
 
       if (isVulcanoFinished === false && isVulcanoBaseFinished === true) {
         // Move position of latest vulcano height contour lines
-        vulcanoHeightContours.at(-1).moveTo(cursor)
+        vulcanoHeightContours.at(-1).moveTo(pointer)
       }
     } else {
       if (isVulcanoBaseFinished === false) {
-        painter.lineTo(cursor)
+        painter.lineTo(pointer)
         shape.lineTo(cursor.x, cursor.y)
         painter.update()
       }
 
       if (isVulcanoFinished === false && isVulcanoBaseFinished === true) {
         // Move position of latest vulcano height contour lines
-        vulcanoHeightContours.at(-1).lineTo(cursor)
+        vulcanoHeightContours.at(-1).lineTo(pointer)
         vulcanoHeightContours.at(-1).update()
       }
     }
@@ -536,11 +529,7 @@ function generateVulcano() {
 
   vulcanoGeometry.computeBoundingBox()
   vulcanoGeometry.boundingBox.getSize(vulcanoBboxSize)
-  var uvMapSize = Math.max(
-    vulcanoBboxSize.x,
-    vulcanoBboxSize.y,
-    vulcanoBboxSize.z
-  )
+  var uvMapSize = Math.max(vulcanoBboxSize.x, vulcanoBboxSize.y, vulcanoBboxSize.z)
 
   let boxGeometry = new THREE.BoxBufferGeometry(uvMapSize, uvMapSize, uvMapSize)
   let material = new THREE.MeshBasicMaterial({
@@ -553,11 +542,7 @@ function generateVulcano() {
   var center = new THREE.Vector3()
   vulcanoGeometry.boundingBox.getCenter(center)
   vulcanoGeometry.center()
-  applyBoxUV(
-    vulcanoGeometry,
-    new THREE.Matrix4().invert(cube.matrix),
-    uvMapSize
-  )
+  applyBoxUV(vulcanoGeometry, new THREE.Matrix4().invert(cube.matrix), uvMapSize)
   vulcanoGeometry.translate(center.x, center.y, center.z)
 
   // vulcanoMesh.rotateX(Math.PI/2)
@@ -568,7 +553,7 @@ function generateVulcano() {
   // Index to position data
   // console.log(vulcanoGeometry)
   // var sphereGeometry = new THREE.SphereGeometry( 0.02, 8, 8)
-  // var sphereMaterial = new THREE.MeshBasicMaterial({color: "red", side: THREE.DoubleSide})
+  // var sphereMaterial = new THREE.MeshBasicMaterial({ color: "red", side: THREE.DoubleSide })
   // for(let i = 0; i < vulcanoGeometry.index.array.length; i++){
   //   // console.log(vulcanoGeometry.index.array[i], vulcanoGeometry.index.array[i + 1], vulcanoGeometry.index.array[i + 2])
   //   var position = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(vulcanoGeometry.index.array[i]), vulcanoGeometry.attributes.position.getY(vulcanoGeometry.index.array[i]), vulcanoGeometry.attributes.position.getZ(vulcanoGeometry.index.array[i]))
@@ -835,10 +820,8 @@ function onMouseMove(event) {
 
 function onTouchMove(event) {
   if (controller.userData.isSelecting === true) {
-    pointer.x =
-      (event.touches[0].pageX / renderer.domElement.clientWidth) * 2 - 1
-    pointer.y =
-      -(event.touches[0].pageY / renderer.domElement.clientHeight) * 2 + 1
+    pointer.x = (event.touches[0].pageX / renderer.domElement.clientWidth) * 2 - 1
+    pointer.y = -(event.touches[0].pageY / renderer.domElement.clientHeight) * 2 + 1
     cursor.set(pointer.x, pointer.y, 0)
   }
 }
@@ -900,10 +883,7 @@ function getElevation(_position, _frequency) {
   for (var i = 1.0; i < _frequency; i++) {
     var frequency = i
     elevation +=
-      noise.perlin2(
-        _position.x * frequency * 20.0,
-        _position.y * frequency * 20
-      ) / 85.0
+      noise.perlin2(_position.x * frequency * 20.0, _position.y * frequency * 20) / 85.0
   }
   return elevation
 }
@@ -912,6 +892,7 @@ function getGradientDescent(_estimate) {
   var oldEstimate = Object.assign({}, _estimate)
   var faceIndex = 0
   var vertIds = oldEstimate
+  var newEstimateCentroidPos = new THREE.Vector3()
 
   // Old estimated face positions
   var oldEstimatePositionA = new THREE.Vector3(
@@ -966,11 +947,6 @@ function getGradientDescent(_estimate) {
       neighbors.splice(i, 3)
     }
   }
-  // console.log("New neighbors found nearby estimate: ", vertIds, "Neighbors: ", neighbors)
-
-  // Debug neighbors
-  // var geometry = new THREE.SphereGeometry( 0.01, 8, 8)
-  // var material = new THREE.MeshBasicMaterial({color: "red", side: THREE.DoubleSide})
 
   // Calculate gradient for every neighbor faces and update face index
   for (var i = 0; i < neighbors.length; i += 3) {
@@ -989,36 +965,76 @@ function getGradientDescent(_estimate) {
       vulcanoGeometry.attributes.position.getY(neighbors[i + 2]),
       vulcanoGeometry.attributes.position.getZ(neighbors[i + 2])
     )
-    var centroidPosition = computeFaceCentroidPosition(
-      positionA,
-      positionB,
-      positionC
-    )
+    var centroidPosition = computeFaceCentroidPosition(positionA, positionB, positionC)
 
-    // // Debug neighbors spheres
+    // Debug neighbors
+    // console.log(
+    //   "New neighbors found nearby estimate: ",
+    //   centroidPosition,
+    //   "Old estimate: ",
+    //   oldEstimateCentroidPosition
+    // )
+    // var geometry = new THREE.SphereGeometry(0.015, 8, 8)
+    // var material = new THREE.MeshBasicMaterial({
+    //   color: "red",
+    //   side: THREE.DoubleSide,
+    // })
     // var sphere = new THREE.Mesh(geometry, material)
-    // sphere.position.set(centroidPosition.x, centroidPosition.y, centroidPosition.z)
+    // sphere.position.set(
+    //   centroidPosition.x,
+    //   centroidPosition.y,
+    //   centroidPosition.z
+    // )
     // vulcanoMesh.add(sphere)
 
-    if (centroidPosition.z <= oldEstimateCentroidPosition.z) {
+    if (centroidPosition.z < oldEstimateCentroidPosition.z) {
       // Found lower valued centroid position in neighbors
       faceIndex = i
+      newEstimateCentroidPos = centroidPosition
     }
   }
 
   // Define new estimate position
-  if (centroidPosition.z <= oldEstimateCentroidPosition.z) {
+  if (newEstimateCentroidPos.z < oldEstimateCentroidPosition.z) {
     _estimate = neighbors.slice(faceIndex, faceIndex + 3)
-    // var estimatePositionA = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[0]), vulcanoGeometry.attributes.position.getY(_estimate[0]), vulcanoGeometry.attributes.position.getZ(_estimate[0]))
-    // var estimatePositionB = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[0 + 1]), vulcanoGeometry.attributes.position.getY(_estimate[0 + 1]), vulcanoGeometry.attributes.position.getZ(_estimate[0 + 1]))
-    // var estimatePositionC = new THREE.Vector3(vulcanoGeometry.attributes.position.getX(_estimate[0 + 2]), vulcanoGeometry.attributes.position.getY(_estimate[0 + 2]), vulcanoGeometry.attributes.position.getZ(_estimate[0 + 2]))
-    // var estimateCentroidPosition = computeFaceCentroidPosition(estimatePositionA, estimatePositionB, estimatePositionC)
-    // console.log("New estimate centroid position: ", estimateCentroidPosition, _estimate)
 
-    // // Debug estimated centroid position
-    // var material = new THREE.MeshBasicMaterial({color: "yellow", side: THREE.DoubleSide})
+    // Debug new estimate
+    // var estimatePositionA = new THREE.Vector3(
+    //   vulcanoGeometry.attributes.position.getX(_estimate[0]),
+    //   vulcanoGeometry.attributes.position.getY(_estimate[0]),
+    //   vulcanoGeometry.attributes.position.getZ(_estimate[0])
+    // )
+    // var estimatePositionB = new THREE.Vector3(
+    //   vulcanoGeometry.attributes.position.getX(_estimate[0 + 1]),
+    //   vulcanoGeometry.attributes.position.getY(_estimate[0 + 1]),
+    //   vulcanoGeometry.attributes.position.getZ(_estimate[0 + 1])
+    // )
+    // var estimatePositionC = new THREE.Vector3(
+    //   vulcanoGeometry.attributes.position.getX(_estimate[0 + 2]),
+    //   vulcanoGeometry.attributes.position.getY(_estimate[0 + 2]),
+    //   vulcanoGeometry.attributes.position.getZ(_estimate[0 + 2])
+    // )
+    // var estimateCentroidPosition = computeFaceCentroidPosition(
+    //   estimatePositionA,
+    //   estimatePositionB,
+    //   estimatePositionC
+    // )
+    // Debug estimated centroid position
+    // console.log(
+    //   "New estimate centroid position: ",
+    //   estimateCentroidPosition,
+    //   _estimate
+    // )
+    // var material = new THREE.MeshBasicMaterial({
+    //   color: "green",
+    //   side: THREE.DoubleSide,
+    // })
     // var sphere = new THREE.Mesh(geometry, material)
-    // sphere.position.set(estimateCentroidPosition.x, estimateCentroidPosition.y, estimateCentroidPosition.z)
+    // sphere.position.set(
+    //   estimateCentroidPosition.x,
+    //   estimateCentroidPosition.y,
+    //   estimateCentroidPosition.z
+    // )
     // vulcanoMesh.add(sphere)
 
     // setTimeout(function() {
