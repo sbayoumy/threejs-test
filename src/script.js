@@ -268,10 +268,10 @@ window.addEventListener("resize", () => {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 })
 
-window.addEventListener("mousedown", onMouseDown)
-window.addEventListener("mousemove", onMouseMove)
-window.addEventListener("touchstart", onMouseDown)
-window.addEventListener("touchmove", onTouchMove)
+canvas.addEventListener("mousedown", onMouseDown)
+canvas.addEventListener("mousemove", onMouseMove)
+canvas.addEventListener("touchstart", onMouseDown)
+canvas.addEventListener("touchmove", onTouchMove)
 
 /**
  * Camera
@@ -400,10 +400,10 @@ function onSelectEnd() {
 controller = renderer.xr.getController(0)
 // controller.addEventListener('selectstart', onSelectStart)
 // controller.addEventListener('selectend', onSelectEnd)
-window.addEventListener("touchstart", onSelectStart)
-window.addEventListener("touchend", onSelectEnd)
-window.addEventListener("mousedown", onSelectStart)
-window.addEventListener("mouseup", onSelectEnd)
+canvas.addEventListener("touchstart", onSelectStart)
+canvas.addEventListener("touchend", onSelectEnd)
+canvas.addEventListener("mousedown", onSelectStart)
+canvas.addEventListener("mouseup", onSelectEnd)
 controller.userData.skipFrames = 10
 scene.add(controller)
 
