@@ -126,7 +126,7 @@ gui
 gui
   .add(debugObject, "vulcanoCraterSize")
   .min(0)
-  .max(1)
+  .max(3)
   .step(0.001)
   .name("Crater Size")
   .onFinishChange(() => {
@@ -136,7 +136,7 @@ gui
 gui
   .add(debugObject, "vulcanoCraterDepth")
   .min(0)
-  .max(2)
+  .max(3)
   .step(0.001)
   .name("Crater Depth")
   .onFinishChange(() => {
@@ -231,6 +231,7 @@ var vulcanoMesh = new THREE.Mesh(
 )
 vulcanoMesh.matrixAutoUpdate = false
 
+
 const icosahedron = new THREE.Mesh(icosahedronGeometry, icosahedronMaterial)
 icosahedron.position.z = -50
 // scene.add(icosahedron)
@@ -280,13 +281,18 @@ canvas.addEventListener("touchmove", onTouchMove)
 // const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.025, 200)
 const persCamera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.025, 200)
 const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, -100, 40)
+// const orthoCamera2 = new THREE.OrthographicCamera(sizes.width / -2, sizes.width / 2, sizes.height / 2, sizes.height / -2, -1, 200)
 var camera = orthoCamera
 scene.add(camera)
-camera.position.z = 1
+camera.position.z = 0.4
 
 // Controls
 const controls = new OrbitControls(camera, canvas)
 controls.enableDamping = true
+controls.screenSpacePanning = false
+controls.minDistance = 0.1
+controls.maxDistance = 1
+controls.maxPolarAngle = Math.PI
 controls.enabled = false
 var isPlaced = false
 
@@ -299,7 +305,7 @@ const renderer = new THREE.WebGLRenderer({
 })
 renderer.setSize(sizes.width, sizes.height)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-renderer.setClearColor(new THREE.Color(0x2f2f2f))
+renderer.setClearColor(new THREE.Color(0xa8a8a8))
 renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 1
 renderer.outputEncoding = THREE.sRGBEncoding
@@ -361,12 +367,15 @@ function onSelectStart() {
 function onSelectEnd() {
   controller.userData.isSelecting = false
   if (isVulcanoBaseFinished === true && isVulcanoFinished === false) {
-    let geometry = vulcanoHeightContours.at(-1).mesh.geometry
+    // let geometry = vulcanoHeightContours.at(-1).mesh.geometry
+    let geometry = vulcanoHeightContours[vulcanoHeightContours.length - 1].mesh.geometry
     geometry.computeBoundingBox()
     geometry.computeBoundingSphere()
-    let centerPos = getCenterPoint(vulcanoHeightContours.at(-1).mesh)
+    // let centerPos = getCenterPoint(vulcanoHeightContours.at(-1).mesh)
+    let centerPos = getCenterPoint(vulcanoHeightContours[vulcanoHeightContours.length - 1].mesh)
     let bboxSize = new THREE.Vector3()
-    vulcanoHeightContours.at(-1).mesh.geometry.boundingBox.getSize(bboxSize)
+    // vulcanoHeightContours.at(-1).mesh.geometry.boundingBox.getSize(bboxSize)
+    vulcanoHeightContours[vulcanoHeightContours.length - 1].mesh.geometry.boundingBox.getSize(bboxSize)
 
     // Debug position
     var material = new THREE.MeshBasicMaterial({
@@ -383,7 +392,8 @@ function onSelectEnd() {
     if (intersect.length > 0 && centerPos.length() > 0) {
       uvCenters.push(intersect[0].uv)
       boundingSphereRadius.push(
-        vulcanoHeightContours.at(-1).mesh.geometry.boundingSphere.radius
+        // vulcanoHeightContours.at(-1).mesh.geometry.boundingSphere.radius
+        vulcanoHeightContours[vulcanoHeightContours.length - 1].mesh.geometry.boundingSphere.radius
       )
     }
 
@@ -418,23 +428,28 @@ const handleController = (controller) => {
       if (isVulcanoBaseFinished === false) {
         painter.moveTo(pointer)
         shape.moveTo(pointer.x, pointer.y)
+        console.log(pointer.x)
       }
 
       if (isVulcanoFinished === false && isVulcanoBaseFinished === true) {
         // Move position of latest vulcano height contour lines
-        vulcanoHeightContours.at(-1).moveTo(pointer)
+        console.log(pointer.x)
+        // vulcanoHeightContours.at(-1).moveTo(pointer)
+        vulcanoHeightContours[vulcanoHeightContours.length - 1].moveTo(pointer)
       }
     } else {
       if (isVulcanoBaseFinished === false) {
         painter.lineTo(pointer)
-        shape.lineTo(cursor.x, cursor.y)
+        shape.lineTo(pointer.x, pointer.y)
         painter.update()
       }
 
       if (isVulcanoFinished === false && isVulcanoBaseFinished === true) {
         // Move position of latest vulcano height contour lines
-        vulcanoHeightContours.at(-1).lineTo(pointer)
-        vulcanoHeightContours.at(-1).update()
+        // vulcanoHeightContours.at(-1).lineTo(pointer)
+        vulcanoHeightContours[vulcanoHeightContours.length - 1].lineTo(pointer)
+        // vulcanoHeightContours.at(-1).update()
+        vulcanoHeightContours[vulcanoHeightContours.length - 1].update()
       }
     }
   }
@@ -481,6 +496,7 @@ const loop = () => {
 
           if (!isPlaced) {
             vulcanoMesh.matrix.fromArray(pose)
+            applyVulcanoChanges()
           }
 
           // Create and apply transform matrix to cursor
@@ -788,7 +804,7 @@ function onMouseDown(event) {
     clickedFaces.push(intersects[0].face)
 
     // Comptute gradient descent when vulcano is ready
-    if (isVulcanoFinished && isPlaced) {
+    if (isVulcanoFinished) {
       // Neighbor
       var intersection = intersects[0]
       var faceIndex = intersection.faceIndex
@@ -865,6 +881,8 @@ function applyVulcanoChanges() {
   // vulcanoMesh.rotation.x = -Math.PI / 4
   if (isVulcanoFinished === false) {
     controls.enabled = true
+    
+    camera.position.y = -1
     // Turn off painted lines
     for (var i = 0; i < vulcanoHeightContours.length; i++) {
       vulcanoHeightContours[i].mesh.visible = false
