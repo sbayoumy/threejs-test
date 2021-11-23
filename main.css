@@ -13,15 +13,15 @@ body
 
 .webgl
 {
-    /* position: fixed;
+    position: fixed;
     top: 0;
     left: 0;
-    outline: none; */
-    width: 100%;
+    outline: none;
+    /* width: 100%;
     height: 100%;
-    display: block;
+    display: block; */
 }
-
+/* 
 #container
 {
     position: relative;
@@ -37,6 +37,6 @@ body
     margin-right: auto;
     top: 20px;
     position: absolute;
-}
+} */
 
 /*# sourceMappingURL=main.css.map*/
