@@ -1,7 +1,7 @@
 import "./style.css"
 import * as THREE from "three"
 import { TubePainter } from "three/examples/jsm/misc/TubePainter.js"
-import { ARButton } from "three/examples/jsm/webxr/ARButton.js"
+import { ARButton } from "./components/ARButton.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { VertexNormalsHelper } from "three/examples/jsm/helpers/VertexNormalsHelper"
 import Delaunator from "delaunator"
@@ -96,7 +96,7 @@ gui.domElement.style.cssText = "position:absolute;top:40px;left:80px;"
 let stats = new Stats()
 stats.showPanel(0)
 stats.domElement.style.cssText = "position:absolute;top:40px;"
-document.body.appendChild(stats.dom)
+// document.body.appendChild(stats.dom)
 var debugObject = {
   vulcanoHeight: 1.0,
   vulcanoDetails: 2.7,
@@ -428,12 +428,10 @@ const handleController = (controller) => {
       if (isVulcanoBaseFinished === false) {
         painter.moveTo(pointer)
         shape.moveTo(pointer.x, pointer.y)
-        console.log(pointer.x)
       }
 
       if (isVulcanoFinished === false && isVulcanoBaseFinished === true) {
         // Move position of latest vulcano height contour lines
-        console.log(pointer.x)
         // vulcanoHeightContours.at(-1).moveTo(pointer)
         vulcanoHeightContours[vulcanoHeightContours.length - 1].moveTo(pointer)
       }
