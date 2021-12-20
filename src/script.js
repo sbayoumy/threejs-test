@@ -58,18 +58,6 @@ var noise = new noisejs.Noise(Math.random())
 
 // Shape
 const shape = new THREE.Shape()
-// Complex
-// shape.lineTo(0, 0.8)
-// shape.lineTo(0.2, 1)
-// shape.lineTo(0.6, 1.2)
-// shape.lineTo(0.9, 1.0)
-// shape.lineTo(1.2, 1.0)
-// shape.lineTo(1.5, 0.8)
-// shape.lineTo(1.8, 0.4)
-// shape.lineTo(1.8, 0)
-// shape.lineTo(1.2, -0.5)
-// shape.lineTo(0.2, -0.5)
-
 const extrudeSettings = {
   curveSegments: 0,
   depth: 0.01,
@@ -222,14 +210,11 @@ scene.add(plane)
 plane.position.z = -2
 plane.geometry.needsUpdate = true
 
-// Generate first then mesh
-// generateVulcano()
-// applyVulcanoChanges()
+// Generate first then create mesh
 var vulcanoMesh = new THREE.Mesh(
   vulcanoGeometry, // Re-use existing geometry
   vulcanoMaterial
 )
-vulcanoMesh.matrixAutoUpdate = false
 
 
 const icosahedron = new THREE.Mesh(icosahedronGeometry, icosahedronMaterial)
@@ -322,12 +307,11 @@ document.body.appendChild(
 renderer.xr.addEventListener("sessionstart", () => {
   renderer.setClearAlpha(0)
   session = renderer.xr.getSession()
-  viewerReferenceSpace = renderer.xr.getReferenceSpace()
   camera = persCamera
   applyVulcanoChanges()
 
   // TODO: Fix rotation when placing vulcano in AR
-  vulcanoMesh.geometry.rotateX(-90)
+  // vulcanoMesh.geometry.rotateX(-90)
 
   if (hitTestSourceRequested === false) {
     //TODO: Setup local reference space
@@ -486,14 +470,18 @@ const loop = () => {
         var hitTestResults = xrFrame.getHitTestResults(hitTestSource)
         // Checks if a raycast has been hit and picks the closest to the camera
         if (hitTestResults.length) {
+          viewerReferenceSpace = renderer.xr.getReferenceSpace()
           var hit = hitTestResults[0]
-
-          reticle.visible = true
           var pose = hit.getPose(viewerReferenceSpace).transform.matrix
+          
+          reticle.visible = true
           reticle.matrix.fromArray(pose)
 
           if (!isPlaced) {
-            vulcanoMesh.matrix.fromArray(pose)
+            // vulcanoMesh.matrixWorld.fromArray(pose)
+            vulcanoMesh.geometry.center()
+            vulcanoMesh.rotation.x = -Math.PI * 0.5
+            vulcanoMesh.position.setFromMatrixPosition(reticle.matrix)
             applyVulcanoChanges()
           }
 
@@ -559,10 +547,11 @@ function generateVulcano() {
   applyBoxUV(vulcanoGeometry, new THREE.Matrix4().invert(cube.matrix), uvMapSize)
   vulcanoGeometry.translate(center.x, center.y, center.z)
 
-  // vulcanoMesh.rotateX(Math.PI/2)
-  // vulcanoMesh.position.setY(cursor.y)
   scene.add(vulcanoMesh)
   vulcanoMesh.geometry.attributes.uv.needsUpdate = true
+  
+  // const axisHelper = new THREE.AxesHelper( 5 )
+  // vulcanoMesh.add(axisHelper)
 
   // Index to position data
   // console.log(vulcanoGeometry)
