@@ -353,7 +353,6 @@ function onSelectEnd() {
     let vulcanoHeightContour = vulcanoHeightContours[vulcanoHeightContours.length - 1]
     // let geometry = vulcanoHeightContours.at(-1).mesh.geometry // This function does not seem to run on every browser
     let geometry = vulcanoHeightContour.mesh.geometry
-    console.log(vulcanoHeightContour)
 
     geometry.computeBoundingBox()
     geometry.computeBoundingSphere()
@@ -376,8 +375,7 @@ function onSelectEnd() {
     var sphere = new THREE.Mesh(new SphereBufferGeometry(0.02), material)
     sphere.position.set(centerPos.x * 2, centerPos.y * 2, 100)
     sphere.position.set(centerPos.x, centerPos.y, 100)
-    sphere.position.addVectors(bbox.min, bbox.max)
-    // vulcanoHeightContour.mesh.add(sphere)
+    scene.add(sphere)
     vulcanoHeightContour.mesh.position.add(centerPos)
 
     let dir = new THREE.Vector3(0, 0, -1).normalize()
