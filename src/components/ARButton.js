@@ -166,9 +166,9 @@ class ARButton {
 
 			navigator.xr.isSessionSupported( 'immersive-ar' ).then( function ( supported ) {
 
-				supported ? showStartAR() : showStart3D();
+				supported ? showStartAR() : showARNotSupported();
 
-			} ).catch( showStart3D );
+			} ).catch( showARNotSupported );
 
 			return button;
 

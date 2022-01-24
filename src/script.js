@@ -12,7 +12,7 @@ import vulcanoVertexShader from "./shaders/vulcano/vertex.glsl"
 import vulcanoFragmentShader from "./shaders/vulcano/fragment.glsl"
 import lavaVertexShader from "./shaders/lavaflow/vertex.glsl"
 import lavaFragmentShader from "./shaders/lavaflow/fragment.glsl"
-import { MathUtils, SphereBufferGeometry } from "three"
+import { MathUtils, SphereBufferGeometry, Vector2 } from "three"
 
 // Canvas
 let canvas = document.querySelector("canvas.webgl")
@@ -30,7 +30,6 @@ const textureLoader = new THREE.TextureLoader()
 
 // Textures
 const lavaTexture = textureLoader.load("lava.png")
-// lavaTexture.wrapT = THREE.RepeatWrapping
 
 // Scene
 let scene = new THREE.Scene()
@@ -58,6 +57,7 @@ var noise = new noisejs.Noise(Math.random())
 
 // Shape
 const shape = new THREE.Shape()
+shape.autoClose = true
 const extrudeSettings = {
   curveSegments: 0,
   depth: 0.01,
@@ -80,7 +80,8 @@ var boundingSphereRadius = []
 
 // Debug
 let gui = new dat.GUI()
-gui.domElement.style.cssText = "position:absolute;top:40px;left:80px;"
+gui.close()
+gui.domElement.style.cssText = "position:absolute;top:35px;right:0px;"
 let stats = new Stats()
 stats.showPanel(0)
 stats.domElement.style.cssText = "position:absolute;top:40px;"
@@ -138,8 +139,6 @@ const pointer = new THREE.Vector3()
 const clickedFaces = []
 
 // Geometries
-// const torusGeometry = new THREE.TorusGeometry( .03, .01, 16, 100 )
-const icosahedronGeometry = new THREE.IcosahedronGeometry(20, 20)
 const planeGeometry = new THREE.PlaneBufferGeometry(2, 2)
 const reticleGeometry = new THREE.RingGeometry(0.01, 0.015, 32).rotateX(-Math.PI / 2)
 const vulcanoGeometry = new THREE.BufferGeometry()
@@ -148,20 +147,6 @@ geometryHelper.translate(0, 0, 0)
 geometryHelper.rotateY(Math.PI / 2)
 
 // Materials
-const icosahedronMaterial = new THREE.ShaderMaterial({
-  uniforms: {
-    tLava: {
-      type: "t",
-      value: lavaTexture,
-    },
-    time: {
-      type: "f",
-      value: 0.0,
-    },
-  },
-  vertexShader: lavaVertexShader,
-  fragmentShader: lavaFragmentShader,
-})
 const reticleMaterial = new THREE.MeshBasicMaterial()
 const contourMaterial = new THREE.MeshBasicMaterial({
   color: 0xffffff,
@@ -200,6 +185,20 @@ const vulcanoMaterial = new THREE.ShaderMaterial({
     },
   },
 })
+const lavaMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    tLava: {
+      type: "t",
+      value: lavaTexture,
+    },
+    time: {
+      type: "f",
+      value: 0.0,
+    },
+  },
+  vertexShader: lavaVertexShader,
+  fragmentShader: lavaFragmentShader,
+})
 // gui.add(vulcanoMaterial.uniforms.uVulcanoHeight, 'value').min(0.1).max(3).step(0.001).name('uVulcanoHeight')
 // gui.add(vulcanoMaterial.uniforms.uVulcanoDetails, 'value').min(0.0).max(5).step(0.001).name('uVulcanoDetails')
 // gui.add(vulcanoMaterial.uniforms.uVulcanoCraterSize, 'value').min(0.0).max(1).step(0.001).name('uVulcanoCraterSize')
@@ -216,15 +215,11 @@ var vulcanoMesh = new THREE.Mesh(
   vulcanoMaterial
 )
 
-
-const icosahedron = new THREE.Mesh(icosahedronGeometry, icosahedronMaterial)
-icosahedron.position.z = -50
-// scene.add(icosahedron)
-
 const reticle = new THREE.Mesh(reticleGeometry, reticleMaterial)
 reticle.matrixAutoUpdate = false
 reticle.visible = false
 scene.add(reticle)
+
 rayCastHelper = new THREE.Mesh(geometryHelper, new THREE.MeshNormalMaterial())
 rayCastHelper.name = "raycaster"
 // scene.add(rayCastHelper)
@@ -262,14 +257,20 @@ canvas.addEventListener("touchmove", onTouchMove)
 /**
  * Camera
  */
-// Base camera
-// const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.025, 200)
+// AR camera
 const persCamera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.025, 200)
+// Paint camera
 const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, -100, 40)
 // const orthoCamera2 = new THREE.OrthographicCamera(sizes.width / -2, sizes.width / 2, sizes.height / 2, sizes.height / -2, -1, 200)
 var camera = orthoCamera
 scene.add(camera)
 camera.position.z = 0.4
+
+
+const cube = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), new THREE.MeshBasicMaterial())
+scene.add(cube)
+cube.position.set(-0.1, 0.25, -0.5)
+persCamera.add(cube)
 
 // Controls
 const controls = new OrbitControls(camera, canvas)
@@ -310,9 +311,6 @@ renderer.xr.addEventListener("sessionstart", () => {
   camera = persCamera
   applyVulcanoChanges()
 
-  // TODO: Fix rotation when placing vulcano in AR
-  // vulcanoMesh.geometry.rotateX(-90)
-
   if (hitTestSourceRequested === false) {
     //TODO: Setup local reference space
     session.requestReferenceSpace("viewer").then((referenceSpace) => {
@@ -330,6 +328,7 @@ renderer.xr.addEventListener("sessionstart", () => {
 renderer.xr.addEventListener("sessionend", () => {
   hitTestSourceRequested = false
   hitTestSource = null
+  // Switch camera viewport to old settings
   renderer.setClearAlpha(1)
   camera = orthoCamera
 
@@ -351,24 +350,35 @@ function onSelectStart() {
 function onSelectEnd() {
   controller.userData.isSelecting = false
   if (isVulcanoBaseFinished === true && isVulcanoFinished === false) {
-    // let geometry = vulcanoHeightContours.at(-1).mesh.geometry
-    let geometry = vulcanoHeightContours[vulcanoHeightContours.length - 1].mesh.geometry
+    let vulcanoHeightContour = vulcanoHeightContours[vulcanoHeightContours.length - 1]
+    // let geometry = vulcanoHeightContours.at(-1).mesh.geometry // This function does not seem to run on every browser
+    let geometry = vulcanoHeightContour.mesh.geometry
+    console.log(vulcanoHeightContour)
+
     geometry.computeBoundingBox()
     geometry.computeBoundingSphere()
-    // let centerPos = getCenterPoint(vulcanoHeightContours.at(-1).mesh)
-    let centerPos = getCenterPoint(vulcanoHeightContours[vulcanoHeightContours.length - 1].mesh)
-    let bboxSize = new THREE.Vector3()
-    // vulcanoHeightContours.at(-1).mesh.geometry.boundingBox.getSize(bboxSize)
-    vulcanoHeightContours[vulcanoHeightContours.length - 1].mesh.geometry.boundingBox.getSize(bboxSize)
+    // let centerPos = getCenterPoint(vulcanoHeightContours.at(-1).mesh) // This function does not seem to run on every browser
+    let centerPos = getCenterPoint(vulcanoHeightContour.mesh)
+    geometry.center()
 
-    // Debug position
+    let bboxSize = new THREE.Vector3()
+    let bbox = vulcanoHeightContour.mesh.geometry.boundingBox
+    // vulcanoHeightContours.at(-1).mesh.geometry.boundingBox.getSize(bboxSize) // This function does not seem to run on every browser
+    bbox.getSize(bboxSize)
+    
+    vulcanoHeightContour.mesh.position.addVectors(bbox.min, bbox.max)
+
+    // Vulcano height raycast position
     var material = new THREE.MeshBasicMaterial({
       color: "yellow",
       side: THREE.DoubleSide,
     })
     var sphere = new THREE.Mesh(new SphereBufferGeometry(0.02), material)
     sphere.position.set(centerPos.x * 2, centerPos.y * 2, 100)
-    // scene.add(sphere)
+    sphere.position.set(centerPos.x, centerPos.y, 100)
+    sphere.position.addVectors(bbox.min, bbox.max)
+    // vulcanoHeightContour.mesh.add(sphere)
+    vulcanoHeightContour.mesh.position.add(centerPos)
 
     let dir = new THREE.Vector3(0, 0, -1).normalize()
     rayCaster.set(sphere.position, dir)
@@ -380,14 +390,13 @@ function onSelectEnd() {
         vulcanoHeightContours[vulcanoHeightContours.length - 1].mesh.geometry.boundingSphere.radius
       )
     }
-
-    // applyVulcanoChanges()
   }
   if (isVulcanoBaseFinished === false) {
-    // When the vulcano hasn't been generated yet
-    generateVulcano()
-    // applyVulcanoChanges()
-    isVulcanoBaseFinished = true
+    // When the vulcano hasn't been generated yet check if shape is available
+    if(!isNaN(shape.currentPoint.x) || !isNaN(shape.currentPoint.y)){
+      generateVulcano()
+      isVulcanoBaseFinished = true
+    }
   }
 }
 
@@ -449,10 +458,7 @@ const tick = () => {
 
   // Update objects
   camera.updateMatrixWorld()
-  icosahedron.rotation.y = 0.5 * elapsedTime
-  icosahedronMaterial.uniforms["time"].value = 0.02 * elapsedTime
   vulcanoMaterial.uniforms["uTime"].value = 0.124 * elapsedTime
-  // getGradientDescent()
 
   // Update controls
   handleController(controller)
@@ -539,12 +545,12 @@ function generateVulcano() {
     transparent: true,
     opacity: 0.5,
   })
-  let cube = new THREE.Mesh(boxGeometry, material)
-  // scene.add(cube)
+  let uvBox = new THREE.Mesh(boxGeometry, material)
+  // scene.add(uvBox)
   var center = new THREE.Vector3()
   vulcanoGeometry.boundingBox.getCenter(center)
   vulcanoGeometry.center()
-  applyBoxUV(vulcanoGeometry, new THREE.Matrix4().invert(cube.matrix), uvMapSize)
+  applyBoxUV(vulcanoGeometry, new THREE.Matrix4().invert(uvBox.matrix), uvMapSize)
   vulcanoGeometry.translate(center.x, center.y, center.z)
 
   scene.add(vulcanoMesh)
@@ -590,6 +596,10 @@ function generatePointsAndUvOnGeo(geometry, count) {
     )
     if (isInside(v)) {
       points.push(v)
+      counter++
+    }
+    else
+    {
       counter++
     }
   }
@@ -865,7 +875,6 @@ function applyVulcanoChanges() {
     // vulcanoGeometry.attributes.position.setZ(k, vulcanoGeometry.attributes.position.getZ(k) + z)
   }
 
-  // vulcanoMesh.rotation.x = -Math.PI / 4
   if (isVulcanoFinished === false) {
     controls.enabled = true
     
@@ -1042,9 +1051,7 @@ function getGradientDescent(_estimate) {
     // )
     // vulcanoMesh.add(sphere)
 
-    // setTimeout(function() {
     getGradientDescent(_estimate)
-    // }, Math.abs(1) * 10)
   }
 
   lavaFlowPath.push(oldEstimateCentroidPosition)
@@ -1061,7 +1068,7 @@ function computeFaceCentroidPosition(facePosA, facePosB, facePosC) {
 function drawLavaFlow(path) {
   let lavaFlowPainter = new TubePainter()
   lavaFlowPainter.setSize(1)
-  lavaFlowPainter.mesh.material = icosahedronMaterial
+  lavaFlowPainter.mesh.material = lavaMaterial
   vulcanoMesh.add(lavaFlowPainter.mesh)
   lavaFlowPainter.moveTo(path[0])
 
@@ -1069,7 +1076,7 @@ function drawLavaFlow(path) {
     lavaFlowPainter.lineTo(path[i])
   }
   lavaFlowPainter.update()
-  // Clear lava flow path
+  // Clear lava flow path after path has been drawn
   lavaFlowPath = []
 }
 
