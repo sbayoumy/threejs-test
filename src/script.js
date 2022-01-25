@@ -338,10 +338,11 @@ renderer.xr.addEventListener("sessionend", () => {
 // Controls
 function onSelectStart() {
   controller.userData.isSelecting = true
-  controller.userData.skipFrames = 10
+  controller.userData.skipFrames = 30
   if (isVulcanoBaseFinished === true && isVulcanoFinished === false) {
     let vulcanoHeightContour = new TubePainter()
     vulcanoHeightContour.setSize(0.4)
+    vulcanoHeightContour.mesh.position.set(0, 0, 0)
     vulcanoHeightContour.mesh.material.side = THREE.DoubleSide
     scene.add(vulcanoHeightContour.mesh)
     vulcanoHeightContours.push(vulcanoHeightContour)
@@ -534,6 +535,7 @@ function generateVulcano() {
   vulcanoGeometry.setIndex(pointsIndex) // Add Three.js index to existing geometry
 
   vulcanoGeometry.computeBoundingBox()
+  vulcanoGeometry.computeBoundingSphere()
   vulcanoGeometry.boundingBox.getSize(vulcanoBboxSize)
   var uvMapSize = Math.max(vulcanoBboxSize.x, vulcanoBboxSize.y, vulcanoBboxSize.z)
 
@@ -580,6 +582,7 @@ function generatePointsAndUvOnGeo(geometry, count) {
   var dummyTarget = new THREE.Vector3() // to prevent logging of warnings from ray.at() method
   var ray = new THREE.Ray()
   geometry.computeBoundingBox()
+  geometry.computeBoundingSphere()
   let bbox = geometry.boundingBox
   let points = []
   let uvs = []
@@ -769,6 +772,7 @@ function applyBoxUV(bufferGeometry, transformMatrix, boxSize) {
   if (boxSize === undefined) {
     let geom = bufferGeometry
     geom.computeBoundingBox()
+    geom.computeBoundingSphere()
     let bbox = geom.boundingBox
 
     let bbox_size_x = bbox.max.x - bbox.min.x
@@ -856,7 +860,8 @@ function applyVulcanoChanges() {
     let vulcanoBase = 0
     let vulcanoCrater = 0
     for (let j = 0; j < uvCenters.length; j++) {
-      vulcanoBase += Math.max(0, 1 - uv.distanceTo(uvCenters[j]) * 4.4)
+      // vulcanoBase += Math.max(0, 1 - (uv.distanceTo(uvCenters[j]) * (1 / ((0.4 * boundingSphereRadius[j]))) ))
+      vulcanoBase += Math.max(0, 1 - (uv.distanceTo(uvCenters[j]) * (1 / ((0.5 * boundingSphereRadius[j]))) ))
       vulcanoCrater += Math.max(
         0,
         1 - uv.distanceTo(uvCenters[j]) * 3.7 + -vulcanoCraterSize
