@@ -338,7 +338,7 @@ renderer.xr.addEventListener("sessionend", () => {
 // Controls
 function onSelectStart() {
   controller.userData.isSelecting = true
-  controller.userData.skipFrames = 30
+  controller.userData.skipFrames = 4
   if (isVulcanoBaseFinished === true && isVulcanoFinished === false) {
     let vulcanoHeightContour = new TubePainter()
     vulcanoHeightContour.setSize(0.4)
@@ -373,7 +373,7 @@ function onSelectEnd() {
       side: THREE.DoubleSide,
     })
     var sphere = new THREE.Mesh(new SphereBufferGeometry(0.02), material)
-    // vulcanoHeightContour.mesh.add(sphere)
+    vulcanoHeightContour.mesh.add(sphere)
     
     // Place contour line back in place
     vulcanoHeightContour.mesh.position.set(0,0,0)
@@ -397,7 +397,7 @@ function onSelectEnd() {
   }
   if (isVulcanoBaseFinished === false) {
     // When the vulcano hasn't been generated yet check if shape is available
-    if(!isNaN(shape.currentPoint.x) || !isNaN(shape.currentPoint.y)){
+    if(shape.currentPoint.x != 0 && shape.currentPoint.y != 0){
       generateVulcano()
       isVulcanoBaseFinished = true
     }
@@ -411,7 +411,7 @@ canvas.addEventListener("touchstart", onSelectStart)
 canvas.addEventListener("touchend", onSelectEnd)
 canvas.addEventListener("mousedown", onSelectStart)
 canvas.addEventListener("mouseup", onSelectEnd)
-controller.userData.skipFrames = 10
+controller.userData.skipFrames = 4
 scene.add(controller)
 
 // Handle controller
