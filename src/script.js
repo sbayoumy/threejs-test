@@ -355,18 +355,17 @@ function onSelectEnd() {
     // let geometry = vulcanoHeightContours.at(-1).mesh.geometry // This function does not seem to run on every browser
     let geometry = vulcanoHeightContour.mesh.geometry
 
-    geometry.computeBoundingBox()
     geometry.computeBoundingSphere()
-    // let centerPos = getCenterPoint(vulcanoHeightContours.at(-1).mesh) // This function does not seem to run on every browser
+    geometry.computeBoundingBox()
     let centerPos = getCenterPoint(vulcanoHeightContour.mesh)
-    geometry.center()
 
-    let bboxSize = new THREE.Vector3()
+    // Need to make sure that the drawn contour line is centered 
+    geometry.center()
     let bbox = vulcanoHeightContour.mesh.geometry.boundingBox
-    // vulcanoHeightContours.at(-1).mesh.geometry.boundingBox.getSize(bboxSize) // This function does not seem to run on every browser
+    let bboxSize = new THREE.Vector3()
     bbox.getSize(bboxSize)
-    
-    vulcanoHeightContour.mesh.position.addVectors(bbox.min, bbox.max)
+    centerPos.negate()
+    vulcanoHeightContour.mesh.position.addScaledVector(centerPos, 0.5)
 
     // Vulcano height raycast position
     var material = new THREE.MeshBasicMaterial({
@@ -374,13 +373,19 @@ function onSelectEnd() {
       side: THREE.DoubleSide,
     })
     var sphere = new THREE.Mesh(new SphereBufferGeometry(0.02), material)
-    sphere.position.set(centerPos.x * 2, centerPos.y * 2, 100)
-    sphere.position.set(centerPos.x, centerPos.y, 100)
-    scene.add(sphere)
+    // vulcanoHeightContour.mesh.add(sphere)
+    
+    // Place contour line back in place
+    vulcanoHeightContour.mesh.position.set(0,0,0)
+    centerPos.negate()
     vulcanoHeightContour.mesh.position.add(centerPos)
+    sphere.position.addScaledVector(centerPos, 0.5)
+    var sphereWorldSpace = new THREE.Vector3()
+    sphere.getWorldPosition(sphereWorldSpace)
+
 
     let dir = new THREE.Vector3(0, 0, -1).normalize()
-    rayCaster.set(sphere.position, dir)
+    rayCaster.set(sphereWorldSpace, dir)
     let intersect = rayCaster.intersectObject(vulcanoMesh, false)
     if (intersect.length > 0 && centerPos.length() > 0) {
       uvCenters.push(intersect[0].uv)
@@ -413,7 +418,7 @@ scene.add(controller)
 const handleController = (controller) => {
   const userData = controller.userData
 
-  if (userData.isSelecting === true) {
+  if (userData.isSelecting === true && isNaN(pointer.x) === false) {
     if (userData.skipFrames >= 0) {
       userData.skipFrames--
 
@@ -861,7 +866,7 @@ function applyVulcanoChanges() {
     let vulcanoCrater = 0
     for (let j = 0; j < uvCenters.length; j++) {
       // vulcanoBase += Math.max(0, 1 - (uv.distanceTo(uvCenters[j]) * (1 / ((0.4 * boundingSphereRadius[j]))) ))
-      vulcanoBase += Math.max(0, 1 - (uv.distanceTo(uvCenters[j]) * (1 / ((0.5 * boundingSphereRadius[j]))) ))
+      vulcanoBase += Math.max(0, 1 - (uv.distanceTo(uvCenters[j]) * (1 / ((0.38 * boundingSphereRadius[j]))) ))
       vulcanoCrater += Math.max(
         0,
         1 - uv.distanceTo(uvCenters[j]) * 3.7 + -vulcanoCraterSize
