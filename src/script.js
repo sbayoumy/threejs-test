@@ -12,7 +12,7 @@ import vulcanoVertexShader from "./shaders/vulcano/vertex.glsl"
 import vulcanoFragmentShader from "./shaders/vulcano/fragment.glsl"
 import lavaVertexShader from "./shaders/lavaflow/vertex.glsl"
 import lavaFragmentShader from "./shaders/lavaflow/fragment.glsl"
-import { MathUtils, SphereBufferGeometry, Vector2 } from "three"
+import { MathUtils, SphereBufferGeometry } from "three"
 
 // Canvas
 let canvas = document.querySelector("canvas.webgl")
@@ -100,7 +100,7 @@ gui
   .name("Vulcano Height")
   .onFinishChange(() => {
     vulcanoHeight = debugObject.vulcanoHeight
-    applyVulcanoChanges()
+    applyVulcanoChanges(vulcanoMesh.geometry)
   })
 gui
   .add(debugObject, "vulcanoDetails")
@@ -110,7 +110,7 @@ gui
   .name("Vulcano Details")
   .onFinishChange(() => {
     vulcanoDetails = debugObject.vulcanoDetails
-    applyVulcanoChanges()
+    applyVulcanoChanges(vulcanoMesh.geometry)
   })
 gui
   .add(debugObject, "vulcanoCraterSize")
@@ -120,7 +120,7 @@ gui
   .name("Crater Size")
   .onFinishChange(() => {
     vulcanoCraterSize = debugObject.vulcanoCraterSize
-    applyVulcanoChanges()
+    applyVulcanoChanges(vulcanoMesh.geometry)
   })
 gui
   .add(debugObject, "vulcanoCraterDepth")
@@ -130,7 +130,7 @@ gui
   .name("Crater Depth")
   .onFinishChange(() => {
     vulcanoCraterDepth = debugObject.vulcanoCraterDepth
-    applyVulcanoChanges()
+    applyVulcanoChanges(vulcanoMesh.geometry)
   })
 
 let rayCastHelper
@@ -214,6 +214,9 @@ var vulcanoMesh = new THREE.Mesh(
   vulcanoGeometry, // Re-use existing geometry
   vulcanoMaterial
 )
+
+var vulcanoMeshCopy
+var vulcanoGeometryCopy
 
 const reticle = new THREE.Mesh(reticleGeometry, reticleMaterial)
 reticle.matrixAutoUpdate = false
@@ -309,7 +312,7 @@ renderer.xr.addEventListener("sessionstart", () => {
   renderer.setClearAlpha(0)
   session = renderer.xr.getSession()
   camera = persCamera
-  applyVulcanoChanges()
+  applyVulcanoChanges(vulcanoMesh.geometry)
 
   if (hitTestSourceRequested === false) {
     //TODO: Setup local reference space
@@ -464,6 +467,11 @@ const tick = () => {
   camera.updateMatrixWorld()
   vulcanoMaterial.uniforms["uTime"].value = 0.124 * elapsedTime
 
+  if(renderer.xr.isPresenting == false)
+  {
+    reticle.visible = false
+  }
+
   // Update controls
   handleController(controller)
   controls.update()
@@ -475,7 +483,7 @@ const tick = () => {
 const loop = () => {
   renderer.setAnimationLoop((number, xrFrame) => {
     tick()
-    if (xrFrame) {
+    // if (xrFrame) {
       if (hitTestSource) {
         var hitTestResults = xrFrame.getHitTestResults(hitTestSource)
         // Checks if a raycast has been hit and picks the closest to the camera
@@ -492,17 +500,15 @@ const loop = () => {
             vulcanoMesh.geometry.center()
             vulcanoMesh.rotation.x = -Math.PI * 0.5
             vulcanoMesh.position.setFromMatrixPosition(reticle.matrix)
-            applyVulcanoChanges()
+            applyVulcanoChanges(vulcanoMesh.geometry)
           }
 
           // Create and apply transform matrix to cursor
           var m4 = new THREE.Matrix4().fromArray(pose)
           cursor.set(0, 0, 0).applyMatrix4(m4)
-        } else {
-          reticle.visible = false
         }
       }
-    }
+    // }
 
     renderer.render(scene, camera)
   })
@@ -846,20 +852,29 @@ function onTouchMove(event) {
   }
 }
 
-function applyVulcanoChanges() {
+function applyVulcanoChanges(geometry) {
   // let vulcanoBase = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 4.4)
   // let vulcanoCrater = Math.max(0, 1-uv.distanceTo(new THREE.Vector2(0.5, 0.5)) * 3.7 + -vulcanoCraterSize)
 
+  // Copy drawing before applying changes for the first time
+  if(vulcanoMeshCopy == null)
+  {
+    vulcanoGeometryCopy = new THREE.BufferGeometry()
+    vulcanoGeometryCopy.copy(geometry)
+    vulcanoMeshCopy = new THREE.Mesh(vulcanoGeometryCopy, vulcanoMaterial)
+    scene.add(vulcanoMeshCopy)
+  }
+
   // Apply Z noise
-  for (let k = 0; k < vulcanoGeometry.attributes.position.count; k++) {
+  for (let k = 0; k < geometry.attributes.position.count; k++) {
     let uv = new THREE.Vector2(
-      vulcanoGeometry.attributes.uv.getX(k),
-      vulcanoGeometry.attributes.uv.getY(k)
+      geometry.attributes.uv.getX(k),
+      geometry.attributes.uv.getY(k)
     )
     let position = new THREE.Vector3(
-      vulcanoGeometry.attributes.position.getX(k),
-      vulcanoGeometry.attributes.position.getY(k),
-      vulcanoGeometry.attributes.position.getZ(k)
+      geometry.attributes.position.getX(k),
+      geometry.attributes.position.getY(k),
+      geometry.attributes.position.getZ(k)
     )
 
     let vulcanoBase = 0
@@ -879,8 +894,8 @@ function applyVulcanoChanges() {
     )
     let elevationZ = getElevation(position, 3)
     let z = vulcanoFinal * vulcanoHeight + elevationZ * vulcanoDetails
-    vulcanoGeometry.attributes.position.setZ(k, z)
-    // vulcanoGeometry.attributes.position.setZ(k, vulcanoGeometry.attributes.position.getZ(k) + z)
+    geometry.attributes.position.setZ(k, z)
+    // geometry.attributes.position.setZ(k, geometry.attributes.position.getZ(k) + z)
   }
 
   if (isVulcanoFinished === false) {
@@ -894,10 +909,10 @@ function applyVulcanoChanges() {
     painter.mesh.visible = false
   }
   isVulcanoFinished = true
-  vulcanoGeometry.computeBoundingBox()
-  vulcanoGeometry.computeBoundingSphere()
-  vulcanoGeometry.attributes.uv.needsUpdate = true
-  vulcanoGeometry.attributes.position.needsUpdate = true
+  geometry.computeBoundingBox()
+  geometry.computeBoundingSphere()
+  geometry.attributes.uv.needsUpdate = true
+  geometry.attributes.position.needsUpdate = true
 }
 
 function getElevation(_position, _frequency) {
