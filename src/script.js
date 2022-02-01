@@ -12,7 +12,7 @@ import vulcanoVertexShader from "./shaders/vulcano/vertex.glsl"
 import vulcanoFragmentShader from "./shaders/vulcano/fragment.glsl"
 import lavaVertexShader from "./shaders/lavaflow/vertex.glsl"
 import lavaFragmentShader from "./shaders/lavaflow/fragment.glsl"
-import { MathUtils, SphereBufferGeometry } from "three"
+import { MathUtils } from "three"
 
 // Canvas
 let canvas = document.querySelector("canvas.webgl")
@@ -217,6 +217,7 @@ var vulcanoMesh = new THREE.Mesh(
 
 var vulcanoMeshCopy
 var vulcanoGeometryCopy
+var vulcanoHeightContoursCopy = []
 
 const reticle = new THREE.Mesh(reticleGeometry, reticleMaterial)
 reticle.matrixAutoUpdate = false
@@ -311,9 +312,14 @@ document.body.appendChild(
 renderer.xr.addEventListener("sessionstart", () => {
   renderer.setClearAlpha(0)
   session = renderer.xr.getSession()
-  camera = persCamera
-  applyVulcanoChanges(vulcanoMesh.geometry)
 
+  applyVulcanoChanges(vulcanoMesh.geometry)
+  makeVulcanoCopyVisible(false)
+  vulcanoMesh.visible = false
+  reticle.visible = false
+
+  camera = persCamera
+  
   if (hitTestSourceRequested === false) {
     //TODO: Setup local reference space
     session.requestReferenceSpace("viewer").then((referenceSpace) => {
@@ -331,8 +337,15 @@ renderer.xr.addEventListener("sessionstart", () => {
 renderer.xr.addEventListener("sessionend", () => {
   hitTestSourceRequested = false
   hitTestSource = null
+  session = null
   // Switch camera viewport to old settings
   renderer.setClearAlpha(1)
+
+  isPlaced = false
+  makeVulcanoCopyVisible(true)
+  vulcanoMesh.visible = false
+  reticle.visible = false
+
   camera = orthoCamera
 
   console.log("sessionend")
@@ -375,7 +388,7 @@ function onSelectEnd() {
       color: "yellow",
       side: THREE.DoubleSide,
     })
-    var sphere = new THREE.Mesh(new SphereBufferGeometry(0.02), material)
+    var sphere = new THREE.Mesh(new THREE.SphereBufferGeometry(0.02), material)
     vulcanoHeightContour.mesh.add(sphere)
     
     // Place contour line back in place
@@ -467,11 +480,6 @@ const tick = () => {
   camera.updateMatrixWorld()
   vulcanoMaterial.uniforms["uTime"].value = 0.124 * elapsedTime
 
-  if(renderer.xr.isPresenting == false)
-  {
-    reticle.visible = false
-  }
-
   // Update controls
   handleController(controller)
   controls.update()
@@ -493,6 +501,7 @@ const loop = () => {
           var pose = hit.getPose(viewerReferenceSpace).transform.matrix
           
           reticle.visible = true
+          vulcanoMesh.visible = true
           reticle.matrix.fromArray(pose)
 
           if (!isPlaced) {
@@ -862,6 +871,7 @@ function applyVulcanoChanges(geometry) {
     vulcanoGeometryCopy = new THREE.BufferGeometry()
     vulcanoGeometryCopy.copy(geometry)
     vulcanoMeshCopy = new THREE.Mesh(vulcanoGeometryCopy, vulcanoMaterial)
+    vulcanoMeshCopy.visible = false
     scene.add(vulcanoMeshCopy)
   }
 
@@ -899,13 +909,17 @@ function applyVulcanoChanges(geometry) {
   }
 
   if (isVulcanoFinished === false) {
-    controls.enabled = true
     
-    camera.position.y = -1
+    // controls.enabled = true
+    // camera.position.y = -1
+
     // Turn off painted lines
     for (var i = 0; i < vulcanoHeightContours.length; i++) {
+      vulcanoHeightContoursCopy.push(vulcanoHeightContours[i].mesh.clone())
+      scene.add(vulcanoHeightContoursCopy[i])
       vulcanoHeightContours[i].mesh.visible = false
     }
+
     painter.mesh.visible = false
   }
   isVulcanoFinished = true
@@ -1110,4 +1124,13 @@ function getCenterPoint(mesh) {
   mesh.localToWorld(center)
 
   return center
+}
+
+function makeVulcanoCopyVisible(bool){
+  vulcanoMeshCopy.visible = bool
+
+  for(var i = 0; i < vulcanoHeightContours.length; i++)
+  {
+    vulcanoHeightContoursCopy[i].visible = bool
+  }
 }
