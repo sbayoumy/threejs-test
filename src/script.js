@@ -386,6 +386,8 @@ function onSelectEnd() {
     // Vulcano height raycast position
     var material = new THREE.MeshBasicMaterial({
       color: "yellow",
+      transparent: true,
+      opacity: 0,
       side: THREE.DoubleSide,
     })
     var sphere = new THREE.Mesh(new THREE.SphereBufferGeometry(0.02), material)
