@@ -842,7 +842,7 @@ function onMouseDown(event) {
     // rayCastHelper.position.copy( intersects[ 0 ].point )
   }
 
-  if (renderer.xr.isPresenting) {
+  if (hitTestSource != null) {
     isPlaced = true
   }
 }
