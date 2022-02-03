@@ -253,10 +253,12 @@ window.addEventListener("resize", () => {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 })
 
-canvas.addEventListener("mousedown", onMouseDown)
-canvas.addEventListener("mousemove", onMouseMove)
-canvas.addEventListener("touchstart", onMouseDown)
-canvas.addEventListener("touchmove", onTouchMove)
+window.addEventListener("mousedown", onMouseDown)
+window.addEventListener("mousemove", onMouseMove)
+window.addEventListener("touchstart", onMouseDown)
+window.addEventListener("touchmove", onTouchMove)
+
+
 
 /**
  * Camera
@@ -429,6 +431,7 @@ canvas.addEventListener("touchstart", onSelectStart)
 canvas.addEventListener("touchend", onSelectEnd)
 canvas.addEventListener("mousedown", onSelectStart)
 canvas.addEventListener("mouseup", onSelectEnd)
+
 controller.userData.skipFrames = 4
 scene.add(controller)
 
@@ -813,6 +816,7 @@ function applyBoxUV(bufferGeometry, transformMatrix, boxSize) {
 }
 
 function onMouseDown(event) {
+  console.log(event)
   pointer.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1
   pointer.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1
   rayCaster.setFromCamera(pointer, camera)
@@ -842,6 +846,7 @@ function onMouseDown(event) {
     // rayCastHelper.position.copy( intersects[ 0 ].point )
   }
 
+  
   if (hitTestSource != null) {
     isPlaced = true
   }
